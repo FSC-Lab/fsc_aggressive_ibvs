@@ -1,0 +1,12 @@
+<launch>
+  <arg name="quad_name" default="hummingbird"/>
+
+
+  <group ns="$(arg quad_name)" >
+  <!-- Launch autopilot monitor -->
+    <node pkg="autopilot_monitor" name="autopilot_monitor_node" type="autopilot_monitor_node" output="screen" >
+      <rosparam file="$(find autopilot_monitor)/parameters/monitor_params.yaml" />
+    </node>
+  </group>
+
+</launch>

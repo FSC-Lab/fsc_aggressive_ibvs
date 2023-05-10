@@ -1,0 +1,68 @@
+<launch>
+
+  <arg name="quad_name" default="hummingbird"/>
+  <arg name="mav_name" default="$(arg quad_name)"/>
+  <!-- TODO: mav_with_vi_sensor_for_landing.gazebo-->
+  <arg name="model" value="$(find rotors_description)/urdf/mav_with_vi_sensor_for_landing.gazebo"/>
+  <!-- <arg name="world_name" default="$(find rotors_gazebo)/worlds/apriltag_pattern.world"/> -->
+  <arg name="world_name" default="$(find rotors_gazebo)/worlds/box.world"/>
+
+  <arg name="x_init" default="0"/>
+  <arg name="y_init" default="0"/>
+
+  <arg name="enable_logging" default="false" />
+  <arg name="enable_ground_truth" default="true" />
+  <arg name="enable_command_feedthrough" default="false"/>
+  <arg name="log_file" default="$(arg mav_name)" />
+  <arg name="paused" value="true"/>
+  <arg name="gui" value="false"/>
+  <arg name="verbose" default="false"/>
+  <arg name="debug" default="false"/>
+  <arg name="custom_models" default=""/>
+  
+  <!-- Gazebo stuff to spawn the world !-->
+  <env name="GAZEBO_MODEL_PATH" 
+      value="${GAZEBO_MODEL_PATH}:$(find rotors_gazebo)/models:$(arg custom_models)"/>
+  <env name="GAZEBO_RESOURCE_PATH" 
+      value="${GAZEBO_RESOURCE_PATH}:$(find rotors_gazebo)/models"/>
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(arg world_name)" />
+    <arg name="debug" value="$(arg debug)" />
+    <arg name="paused" value="$(arg paused)" />
+    <arg name="gui" value="$(arg gui)" />
+    <arg name="verbose" value="$(arg verbose)"/>
+  </include>
+
+  <!-- RotorS stuff to spawn the quadrotor !-->
+  <group ns="$(arg mav_name)">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav.launch">
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="model" value="$(arg model)" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+      <arg name="x" value="$(arg x_init)" />
+      <arg name="y" value="$(arg y_init)" />
+    </include>
+  </group>
+
+  <include file="$(find fsc_autopilot)/launch/run_landing_controller.launch">
+    <arg name="quad_name" value="$(arg quad_name)"/>
+  </include>
+
+  <include file="$(find aprilfake)/launch/run_landing_aprilfake.launch">
+    <arg name="quad_name" value="$(arg quad_name)"/>
+  </include>
+
+  <!-- Launch rqt_reconfigure -->
+  <node pkg="rqt_reconfigure" type="rqt_reconfigure" output="screen" name="rqt_reconfigure" />
+
+  <!-- TODO:-->
+  <node pkg="tf" type="static_transform_publisher" name="tf_baseLink_cameraPose"
+        args="0.0 0.0 0.0 0.0 0 0.0 hummingbird/base_link camera_depth_optical_center_link 1000"/>
+
+  <!-- Launch Rviz -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mapping)/config/rviz_rotors.rviz">
+  </node>
+
+</launch>

@@ -1,0 +1,112 @@
+velocity_estimate_in_world_frame: false
+print_info:                       false
+enable_rc_tune:                   true
+enable_state_prediction:          true
+enable_trajectory_replan:         true
+enable_moving_target_track:       false
+enable_mpcc_mode:                 false
+
+# Limits
+emergency_land_thrust:        9.0
+max_emergency_pos_z:          10.0
+min_emergency_pos_z:          -1.0
+max_emergency_pos_xy:         100.0
+min_emergency_pos_xy:         -100.0
+reference_thrust:             9.81
+max_reference_pos_z:          5.0
+min_reference_pos_z:          0.0
+max_reference_pos_xy:         100.0
+min_reference_pos_xy:         -100.0
+
+max_planning_vel:             10.0
+use_flip_mode:                false
+height_gap:                   0.0
+
+max_distance:                 30.0
+min_distance:                 0.2
+max_thrust_ratio:             1.0
+min_thrust_ratio:             0.5
+
+# Frequencies
+command_publish_frequency:    20
+watchdog_frequency:           30
+
+# Timeouts
+odometry_estimate_timeout:    0.1
+point_estimate_timeout:       0.1
+synchron_data_timeout:        0.3
+command_update_timeout:       1.0
+emergency_landing_timeout:    3.0
+flight_termination_timeout:   3.0
+land_timeout:                 5.0
+home_timeout:                 5.0
+
+# Sizes
+gate_width: 10.0
+gate_height: 10.0
+quad_radius: 0.3
+
+# Initial Reference
+init_position:        [ 0.0, 0.0, 1.0 ]
+init_heading:         0.0
+
+# Home Reference
+home_position:        [ 0.0, 0.0, 0.5 ]
+home_heading:         0.0
+
+# MPC Parameters
+control_mode:                 2
+state_cost_exponential: 0.0     # Scaling for state costs
+input_cost_exponential: 0.0     # scaling for input costs
+Q_pos_xy:     200     
+Q_pos_z:      200
+Q_att:   50
+Q_vel:   10
+Q_thr: 0
+
+Q_img_u: 0
+Q_img_v: 0
+Q_err:   0
+Q_drate: 0
+
+R_thrust:     1     # Cost on thrust input
+R_roll:   60     # Cost on pitch and roll rate
+R_pitch:  60     # Cost on pitch and roll rate
+R_yaw:    20     # Cost on yaw ratte
+R_sv1: 0.001
+R_sv2: 0.001
+
+cost_feature_track: 200
+cost_visibility_u:  1000
+cost_visibility_v:  0
+# cost_constratint_vis:  1.0e-4
+cost_constratint_vis:  10000
+cost_constratint_ttc:  50
+
+reference_distance:           3.0
+reaching_distance:            2.0
+reference_speed: 1
+cost_speed:  10
+feature_track_max_distance: 1.0
+feature_track_distance_threshold: 2.0
+global_point_position_change_threshold: 3.0
+image_u_bound: 0.58
+image_v_bound: 0.37
+# image_u_bound: 0.75
+# image_v_bound: 0.45
+
+
+# Control Limits
+max_thrust_rate:    40
+max_bodyrate_x:    3.0       # ~ pi [rad/s]
+max_bodyrate_y:    3.0       # ~ pi [rad/s]
+max_bodyrate_z:     1.5      # ~ pi*2/3 [rad/s]
+min_thrust:         1.0       # ~ 20% gravity [N]
+max_thrust:         20.0      # ~ 200% gravity [N]
+thrust_ratio:       1.42
+predictive_control_lookahead: 1.0
+control_command_delay: 0.005
+
+# Camera Extrinsics
+t_B_C:      [ 0.0, 0.0, 0.15 ]        # camera in body center [m]
+q_B_C:      [ 0.5, -0.5, 0.5, -0.5 ]  # point forward

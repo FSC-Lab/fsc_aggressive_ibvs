@@ -1,0 +1,16 @@
+<launch>
+  <arg name="quad_name" default="hummingbird"/>
+
+  <include file="$(find fsc_rotors_interface)/launch/quadrotor_box_world.launch">
+    <arg name="quad_name" value="$(arg quad_name)"/>
+    <arg name="enable_command_feedthrough" value="True"/>
+  </include>
+
+  <include file="$(find planning)/launch/run_poly_nodelet.launch">
+    <arg name="quad_name" value="$(arg quad_name)"/>
+  </include>
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mapping)/config/rviz_rotors.rviz">
+  </node>
+
+</launch>

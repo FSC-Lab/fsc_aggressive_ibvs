@@ -1,0 +1,42 @@
+<launch>
+  <arg name="quad_name" default="hummingbird"/>
+
+  <!-- Autopilot -->
+  <arg name="image_topic" default="vi_sensor/left/image_raw"/>
+  <arg name="camera_info_topic" default="vi_sensor/left/camera_info"/>
+  <arg name="odom_topic" default="ground_truth/odometry"/>
+  <!-- <arg name="point_topic" default="target/point"/> -->
+  <arg name="point_topic" default="aprilfake/point"/>
+  <!-- <arg name="autopilot/reference_pose" default="/move_base_simple/goal"/> -->
+  <arg name="autopilot/reference_pose" default="autopilot/reference_pose"/>
+  <arg name="autopilot/reference_trajectory" default="autopilot/reference_trajectory"/>
+
+  <group ns="$(arg quad_name)" >
+
+    <!-- Launch controller -->
+    <node pkg="fsc_autopilot" name="fsc_rotors_node" type="fsc_rotors_node" output="screen" >
+      <remap from="odom_topic" to="$(arg odom_topic)" />
+      <remap from="point_topic" to="$(arg point_topic)" />
+      <remap from="autopilot/reference_pose" to="$(arg autopilot/reference_pose)" />
+      <remap from="autopilot/reference_trajectory" to="$(arg autopilot/reference_trajectory)" />
+      <rosparam file="$(find fsc_autopilot)/parameters/rotors_control_params.yaml" />
+      <rosparam file="$(find flight_system)/parameters/rotors_params.yaml" />
+      <rosparam file="$(find fsc_autopilot)/parameters/hummingbird.yaml" />
+    </node>
+
+    <node pkg="fsc_rotors_interface" type="fsc_rotors_interface"  name="fsc_rotors_interface" output="screen" >
+      <rosparam file="$(find fsc_rotors_interface)/parameters/fsc_rotors_interface.yaml" />
+      <remap from="odometry" to="$(arg odom_topic)" />
+      <remap from="fsc_rotors_interface/arm" to="bridge/arm" />
+    </node>
+
+    <node pkg="param_tuner" name="param_tuner_node" type="param_tuner_node" output="screen" >
+    </node>
+
+    <node pkg="odom_visualization" name="odom_visualization" type="odom_visualization" output="screen">
+      <remap from="~odom" to="ground_truth/odometry" />
+      <param name="robot_scale" value="1.0"/>
+    </node>
+  </group>
+
+</launch>

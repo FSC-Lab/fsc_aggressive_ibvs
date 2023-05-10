@@ -1,0 +1,81 @@
+<launch>
+  <arg name="quad_name" default="hummingbird"/>
+
+  <!-- Autopilot -->
+  <arg name="image_topic" default="vi_sensor/left/image_raw"/>
+  <arg name="camera_info_topic" default="vi_sensor/left/camera_info"/>
+  <arg name="odom_topic" default="ground_truth/odometry"/>
+  <arg name="point_topic" default="target/point"/>
+  <!-- <arg name="autopilot/reference_pose" default="/move_base_simple/goal"/> -->
+  <arg name="autopilot/reference_pose" default="autopilot/reference_pose"/>
+  <arg name="autopilot/reference_trajectory" default="autopilot/reference_trajectory"/>
+
+  <group ns="$(arg quad_name)" >
+
+    <!-- Launch mapping -->
+    <node pkg="nodelet" type="nodelet" name="manager" args="manager" output="screen">
+      <param name="num_worker_threads" value="16"/>
+    </node>
+    <node name="mapping_vis" pkg="mapping" type="mapping_vis_node">
+      <remap from="~gridmap" to="gridmap"/>
+      <remap from="~gridmap_inflate" to="gridmap_inflate"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="mapping" args="load mapping/Nodelet manager" output="screen">
+      <!-- camera parameters -->
+      <rosparam command="load" file="$(find mapping)/config/rotors_camera.yaml"/>
+      <!-- remap topics -->
+      <remap from="~odom" to="ground_truth/odometry"/>
+      <remap from="~depth" to="vi_sensor/camera_depth/depth/disparity"/>
+      <remap from="~gridmap" to="gridmap"/>
+      <remap from="~gridmap_inflate" to="gridmap_inflate"/>
+      <param name="down_sample_factor" value="2"/>
+      <!-- depth filter parameters -->
+      <param name="depth_filter_tolerance" value="0.15"/>
+      <param name="depth_filter_mindist" value="0.2"/>
+      <param name="depth_filter_margin" value="2"/>
+      <!-- raycasting parameters -->
+      <param name="p_min" value="-199"/>
+      <param name="p_max" value=" 220"/>
+      <param name="p_hit" value="  62"/>
+      <param name="p_mis" value="  62"/>
+      <param name="p_occ" value=" 139"/>
+      <param name="p_def" value="-199"/>
+      <!-- mapping parameters -->
+      <param name="resolution" value="0.15"/>
+      <param name="local_x" value="20"/>
+      <param name="local_y" value="20"/>
+      <param name="local_z" value="5"/>
+      <param name="inflate_size" value="1"/>
+    </node>
+
+    <!-- Launch planner -->
+    <node pkg="nodelet" type="nodelet" name="planning" args="load planning/Nodelet manager" output="screen">
+      <remap from="~odom" to="$(arg odom_topic)"/>
+      <remap from="~gridmap_inflate" to="gridmap_inflate"/>
+      <remap from="~heartbeat" to="heartbeat"/>
+      <remap from="~trajectory" to="trajectory"/>
+      <remap from="~replanState" to="replanState"/>
+      <remap from="~triger" to="/move_base_simple/goal"/>
+
+      <remap from="~autopilot/reference_trajectory" to="autopilot/reference_trajectory"/>
+      <param name="plan_hz" value="20"/>
+
+      <param name="K" value="8"/>
+      <param name="vmax" value="1.5"/>
+      <param name="amax" value="2.5"/>
+      <param name="rhoT" value="100.0"/>
+      <param name="rhoP" value="10000.0"/>
+      <param name="rhoV" value="1000.0"/>
+      <param name="rhoA" value="1000.0"/>
+      <param name="clearance_d" value="0.2"/>
+      <param name="tolerance_d" value="0.5"/>
+      <param name="tracking_dist" value="3.0"/>
+      <param name="debug" value="false"/>
+      <param name="fake" value="true"/>
+
+    </node>
+
+  </group>
+
+</launch>

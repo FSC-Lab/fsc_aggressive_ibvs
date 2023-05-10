@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="quad_name"/>
+  <arg name="world_name"/>
+  <arg name="paused"/>
+  <arg name="gui"/>
+  <arg name="use_ground_truth"/>
+  <arg name="use_mpc" default="false"/>
+  <arg name="enable_command_feedthrough" default="false"/>
+  <arg name="custom_models" default=""/>
+
+  <arg name="mav_name"/>
+  <arg name="model"/>
+  <arg name="enable_logging"/>
+  <arg name="enable_ground_truth"/>
+  <arg name="log_file"/>
+
+  <arg name="x_init"/>
+  <arg name="y_init"/>
+
+  <arg name="debug"/>
+  <arg name="verbose"/>
+
+  <!-- Gazebo stuff to spawn the world !-->
+  <env name="GAZEBO_MODEL_PATH" 
+      value="${GAZEBO_MODEL_PATH}:$(find rotors_gazebo)/models:$(arg custom_models)"/>
+  <env name="GAZEBO_RESOURCE_PATH" 
+      value="${GAZEBO_RESOURCE_PATH}:$(find rotors_gazebo)/models"/>
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(arg world_name)" />
+    <arg name="debug" value="$(arg debug)" />
+    <arg name="paused" value="$(arg paused)" />
+    <arg name="gui" value="$(arg gui)" />
+    <arg name="verbose" value="$(arg verbose)"/>
+  </include>
+
+  <!-- RotorS stuff to spawn the quadrotor !-->
+  <group ns="$(arg mav_name)">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav.launch">
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="model" value="$(arg model)" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+      <arg name="x" value="$(arg x_init)" />
+      <arg name="y" value="$(arg y_init)" />
+    </include>
+  </group>
+
+  <!-- FSC stuff !-->
+  <group ns="$(arg quad_name)" >
+
+    <node pkg="fsc_rotors_interface" type="fsc_rotors_interface" 
+        name="fsc_rotors_interface" output="screen" >
+      <rosparam file="$(find fsc_rotors_interface)/parameters/fsc_rotors_interface.yaml" />
+      <remap from="odometry" to="ground_truth/odometry" />
+      <remap from="fsc_rotors_interface/arm" to="bridge/arm" />
+    </node>
+
+    <!-- Launch autopilot -->
+    <node pkg="fsc_autopilot" name="fsc_rotors_node" type="fsc_rotors_node" output="screen" >
+      <remap from="odom_topic" to="ground_truth/odometry" />
+      <remap from="point_topic" to="yolov5/gate/point" />
+      <remap from="autopilot/reference_pose" to="autopilot/reference_pose" />
+      <remap from="autopilot/reference_trajectory" to="autopilot/reference_trajector" />
+      <param name="use_motion_capture" type="bool" value="false" />
+      <rosparam file="$(find fsc_autopilot)/parameters/rotors_control_params.yaml" />
+      <rosparam file="$(find flight_system)/parameters/rotors_params.yaml" />
+      <rosparam file="$(find fsc_autopilot)/parameters/hummingbird.yaml" />
+    </node>
+
+    <!-- Launch param tuner -->
+    <node pkg="param_tuner" name="param_tuner_node" type="param_tuner_node" output="screen" >
+    </node>
+
+    <!-- Launch rqt_reconfigure -->
+    <node pkg="rqt_reconfigure" type="rqt_reconfigure" output="screen" name="rqt_reconfigure" />
+
+  </group> 
+
+
+</launch>
