@@ -106,3 +106,10 @@ Specify the desired distance
 ![fig3](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_03.png)
 
 And you will see the resulting flight trajectory in rviz.
+
+<p align="center">
+    <img src="https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/video_tracking.gif" width="500"/>
+</p>
+
+
+
