@@ -63,6 +63,12 @@ git clone https://github.com/ethz-asl/mav_comm
 git clone https://github.com/ethz-asl/rotors_simulator
 ```
 
+### Clone this repository:
+
+```
+git clone https://github.com/FSC-Lab/fsc_aggressive_ibvs
+```
+
 ### Configure RotorS
 
 ```
