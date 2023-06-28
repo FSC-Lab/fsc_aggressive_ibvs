@@ -10,6 +10,8 @@ This IBVS control algorithm is designed for aggressive quadrotors to ensure targ
 
 **Video Links**: [youtube](https://www.youtube.com/watch?v=X2-SMGD99oA)
 
+![fig2](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_exp.png)
+
 
 
 ## II. Installation
@@ -110,6 +112,5 @@ And you will see the resulting flight trajectory in rviz.
 <p align="center">
     <img src="https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/video_tracking.gif" width="500"/>
 </p>
-
 
 
