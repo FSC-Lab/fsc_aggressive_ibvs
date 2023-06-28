@@ -107,7 +107,7 @@ Click feature track to switch the control from position control to our IBVS
 Specify the desired distance 
 ![fig3](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_03.png)
 
-And you will see the resulting flight trajectory in rviz.
+And you will see the resulting flight trajectory in rviz. From the image in the left corner, we can see that our controller strives to maintain the target visual feature within the specified rectangular image bound.
 
 <p align="center">
     <img src="https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/video_tracking.gif" width="500"/>
