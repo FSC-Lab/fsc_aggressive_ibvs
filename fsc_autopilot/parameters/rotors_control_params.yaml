@@ -20,7 +20,7 @@ min_reference_pos_xy:         -100.0
 
 max_planning_vel:             8.0
 use_flip_mode:                false
-height_gap:                   -1.0
+height_gap:                   0.0
 
 max_distance:                 30.0
 min_distance:                 0.2
@@ -47,7 +47,7 @@ gate_height: 10.0
 quad_radius: 0.3
 
 # Initial Reference
-init_position:        [ 0.0, 0.0, 0.5 ]
+init_position:        [ 0.0, 0.0, 3.0 ]
 init_heading:         0.0
 
 # Home Reference
