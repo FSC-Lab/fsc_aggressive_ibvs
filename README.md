@@ -120,4 +120,7 @@ And you will see the resulting flight trajectory in rviz. From the image in the 
     <img src="https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/video_tracking.gif" width="500"/>
 </p>
 
+## IV. Acknowledgment
+Our implementation is based on [rpg_quadrotor_control](https://github.com/uzh-rpg/rpg_quadrotor_control
+) and [rpg_mpc](https://github.com/uzh-rpg/rpg_mpc).
 
