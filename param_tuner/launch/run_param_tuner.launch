@@ -1,0 +1,11 @@
+<launch>
+
+  <!-- Launch param tuner -->
+  <node pkg="param_tuner" name="param_tuner_node" type="param_tuner_node" output="screen" >
+  </node>
+
+  <!-- Launch rqt_reconfigure -->
+  <node pkg="rqt_reconfigure" type="rqt_reconfigure" output="screen" name="rqt_reconfigure" />
+
+
+</launch>

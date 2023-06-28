@@ -49,7 +49,7 @@ include_directories(
 list(APPEND SOURCE_FILES
     ${PROJECT_SOURCE_DIR}/src/flight_system.cpp
     ${PROJECT_SOURCE_DIR}/src/rotors_system.cpp
-    ${PROJECT_SOURCE_DIR}/src/pixhawk_system.cpp
+    # ${PROJECT_SOURCE_DIR}/src/pixhawk_system.cpp
 )
 
 add_library(flight_system ${SOURCE_FILES})

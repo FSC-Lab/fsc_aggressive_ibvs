@@ -2,9 +2,8 @@
 
   <arg name="quad_name" default="hummingbird"/>
   <arg name="mav_name" default="$(arg quad_name)"/>
-  <arg name="model" value="$(find rotors_description)/urdf/mav_with_vi_sensor.gazebo"/>
-  <!-- <arg name="world_name" default="$(find rotors_gazebo)/worlds/apriltag_pattern.world"/> -->
-  <arg name="world_name" default="$(find rotors_gazebo)/worlds/box.world"/>
+  <arg name="model" value="$(find rotors_description)/urdf/mav_fpv_sensor.gazebo"/>
+  <arg name="world_name" default="$(find rotors_gazebo)/worlds/basic.world"/>
 
   <arg name="x_init" default="0"/>
   <arg name="y_init" default="0"/>
@@ -60,7 +59,7 @@
         args="0.0 0.0 0.15 -1.57 0 -1.57 hummingbird/base_link camera_depth_optical_center_link 1000"/>
 
   <!-- Launch Rviz -->
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find mapping)/config/rviz_rotors.rviz">
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find fsc_autopilot)/rviz/rviz_rotors.rviz">
   </node>
 
 </launch>

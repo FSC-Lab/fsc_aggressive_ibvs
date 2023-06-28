@@ -1,0 +1,8 @@
+<library path="lib/libaprilfake_nodelet">
+    <class name="aprilfake/AprilFakeNodelet" type="aprilfake::AprilFakeNodelet" base_class_type="nodelet::Nodelet">
+        <description>
+            aprilfake nodelet
+        </description>
+    </class>
+
+</library>

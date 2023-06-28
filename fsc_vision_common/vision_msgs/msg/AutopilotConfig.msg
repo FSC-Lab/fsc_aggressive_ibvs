@@ -1,0 +1,26 @@
+uint8 UNINIT=0
+uint8 BOOT=1
+uint8 CALIBRATING=2
+uint8 STANDBY=3
+uint8 ACTIVE=4
+uint8 CRITICAL=5
+uint8 EMERGENCY=6
+uint8 POWEROFF=7
+uint8 FLIGHT_TERMINATION=8
+
+uint8 MODE_NONE=0
+uint8 MPC_POSITION=1
+uint8 MPC_VISION=2
+uint8 FEED_THROUGH=3
+
+uint8 POSITION_TRACK=0
+uint8 TRAJECTORY_TRACK=1
+uint8 VELOCITY_TRACK=2
+uint8 TARGET_FOLLOW=3
+uint8 AUTO_RACING=4
+uint8 HOME=5
+uint8 LAND=6
+
+uint8 autopilot_state
+uint8 control_mode
+uint8 flight_mode

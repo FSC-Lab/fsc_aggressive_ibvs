@@ -1,1 +1,0 @@
-rostopic pub /hummingbird/trig_go std_msgs/Empty

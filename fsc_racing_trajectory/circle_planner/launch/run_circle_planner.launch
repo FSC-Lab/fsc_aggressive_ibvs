@@ -1,0 +1,10 @@
+<launch>
+  <arg name="odom_topic" default="/mavros/local_position/odom"/>
+
+  <!-- Launch circle tracking node -->
+  <node pkg="circle_planner" name="circle_planner_node" type="circle_planner_node" output="screen" >
+    <remap from="odom_topic" to="$(arg odom_topic)" />
+    <rosparam file="$(find circle_planner)/parameters/planner_params.yaml" />
+  </node>
+
+</launch> 

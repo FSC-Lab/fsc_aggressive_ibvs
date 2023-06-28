@@ -1,0 +1,5 @@
+Header header
+
+vision_msgs/PolynomialCurve trajectory_x
+vision_msgs/PolynomialCurve trajectory_y
+vision_msgs/PolynomialCurve trajectory_z

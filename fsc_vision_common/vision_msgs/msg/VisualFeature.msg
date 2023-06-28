@@ -1,0 +1,4 @@
+string id
+geometry_msgs/Quaternion normal_vector
+float64 distance
+float64 variance

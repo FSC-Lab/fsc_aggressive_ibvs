@@ -81,21 +81,8 @@ target_link_libraries(mpc_controller
   mpc_wrapper
   ${catkin_LIBRARIES})
 
-add_executable(fsc_pixhawk_node
-  src/node/fsc_pixhawk_node.cpp
-  src/distparam_trajectory.cpp)
-target_link_libraries(fsc_pixhawk_node
-  PUBLIC
-  mpc_solver
-  mpc_wrapper
-  mpc_controller
-  ${catkin_LIBRARIES}
-  ${Boost_LIBRARIES}
-)
-
 add_executable(fsc_rotors_node
-  src/node/fsc_rotors_node.cpp
-  src/distparam_trajectory.cpp)
+  src/node/fsc_rotors_node.cpp)
 target_link_libraries(fsc_rotors_node
   PUBLIC
   mpc_solver
@@ -105,13 +92,4 @@ target_link_libraries(fsc_rotors_node
   ${Boost_LIBRARIES}
 )
 
-add_executable(goal_broadcast_node src/node/goal_broadcast_node.cpp)
-target_link_libraries(goal_broadcast_node
-  ${catkin_LIBRARIES}
-)
-
-add_executable(flight_mode_publisher_node src/node/flight_mode_publisher_node.cpp)
-target_link_libraries(flight_mode_publisher_node
-  ${catkin_LIBRARIES}
-)
 

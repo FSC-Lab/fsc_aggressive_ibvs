@@ -1,0 +1,42 @@
+<launch>
+  <arg name="quad_name" default="hummingbird"/>
+
+  <!-- Autopilot -->
+  <arg name="image_topic" default="vi_sensor/left/image_raw"/>
+  <arg name="camera_info_topic" default="vi_sensor/left/camera_info"/>
+  <arg name="odom_topic" default="ground_truth/odometry"/>
+  <arg name="goal_topic" default="/move_base_simple/goal"/>
+  <arg name="trig_topic" default="trig_go"/>
+
+  <arg name="target_odom_topic" default="aprilfake/target_odom"/>
+  <arg name="target_pose_topic" default="aprilfake/target_pose"/>
+  <arg name="point_topic" default="aprilfake/point"/>
+  <arg name="true_point_topic" default="aprilfake/true_point"/>
+
+  <arg name="feature_topic" default="aprilfake/feature"/>
+  <arg name="point_image" default="aprilfake/point_image"/>
+  <arg name="vis_target" default="aprilfake/vis_target"/>
+  <arg name="vis_trajectory" default="aprilfake/vis_trajectory"/>
+
+  <group ns="$(arg quad_name)" >
+    <!-- Launch aprilfake -->
+    <node pkg="aprilfake" name="aprilfake_node" type="aprilfake_node" output="screen" >
+      <remap from="image_topic" to="$(arg image_topic)" />
+      <remap from="odom_topic" to="$(arg odom_topic)" />
+      <remap from="goal_topic" to="$(arg goal_topic)" />
+      <remap from="trig_topic" to="$(arg trig_topic)" />
+
+      <remap from="target_odom_topic" to="$(arg target_odom_topic)" />
+      <remap from="target_pose_topic" to="$(arg target_pose_topic)" />
+      <remap from="point_topic" to="$(arg point_topic)" />
+      <remap from="true_point_topic" to="$(arg true_point_topic)" />
+      <remap from="feature_topic" to="$(arg feature_topic)" />
+      <remap from="point_image" to="$(arg point_image)" />
+      <remap from="vis_target" to="$(arg vis_target)" />
+      <remap from="vis_trajectory" to="$(arg vis_trajectory)" />
+      <rosparam file="$(find aprilfake)/parameters/aprilfake_params.yaml" />
+    </node>
+
+  </group>
+
+</launch> 

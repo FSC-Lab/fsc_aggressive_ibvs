@@ -51,7 +51,7 @@
 #include <thread>
 
 #include <fsc_autopilot/fsc_common.h>
-#include <fsc_autopilot/distparam_trajectory.h>
+// #include <fsc_autopilot/distparam_trajectory.h>
 
 #include <vision_msgs/TrajectoryRacing.h>
 
@@ -92,8 +92,6 @@ class Autopilot {
   void referencePoseCallback(const geometry_msgs::PoseStamped& msg);
   void referenceTrajectoryCallback(const vision_msgs::Trajectory& msg);
 
-  void trajectoryRacingCallback(const vision_msgs::TrajectoryRacing& msg);
-
   void flightModeCallback(const vision_msgs::FlightMode& msg);
 
   // Thread functions
@@ -119,9 +117,7 @@ class Autopilot {
   void trackTrajectory();
   void trackVelocity();
   void trackFeature();
-  void reachFeature();
   void home();
-  void racing();
   void land();
   
   // MPC functions
@@ -131,7 +127,6 @@ class Autopilot {
   bool checkFeatureTrack();
   bool checkFeatureReach();
   void goMPC(const vision_common::StateEstimate& state_est);
-  void goMPCC(const vision_common::StateEstimate& state_est);
 
   Eigen::Vector3d computeReferencePosition(const double reference_distance);
 
@@ -196,7 +191,6 @@ class Autopilot {
   /* Racing Test */
   ros::Subscriber trajracing_sub_;
   vision_common::Trajectory trajectory_racing_;
-  DistparamTrajectory distparam_trajectory_racing_;
   Eigen::Vector3d local_goal_;
   vision_common::GateFeatureArray gates_;
 
@@ -242,7 +236,6 @@ class Autopilot {
   Eigen::Vector3d last_global_point_;
 
   /* Point Detection */
-  DistparamTrajectory distparam_trajectory_;
   int order_ = 5;
   double max_planning_vel_ = 8.0;
   double max_thrust_ = 20.0;
@@ -341,7 +334,6 @@ class Autopilot {
   double quad_radius_;
   bool enable_trajectory_replan_;
   bool enable_moving_target_track_;
-  bool enable_mpcc_mode_;
   bool enable_state_prediction_;
   bool enable_rc_tune_;
   bool print_info_;

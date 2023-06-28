@@ -4,7 +4,6 @@ enable_rc_tune:                   true
 enable_state_prediction:          true
 enable_trajectory_replan:         true
 enable_moving_target_track:       false
-enable_mpcc_mode:                 false
 
 # Limits
 emergency_land_thrust:        9.0
@@ -69,7 +68,7 @@ Q_img_v: 0
 Q_err:   0
 Q_drate: 0
 
-R_thrust:     1     # Cost on thrust input
+R_thrust:     1  # Cost on thrust rate input
 R_roll:   60     # Cost on pitch and roll rate
 R_pitch:  60     # Cost on pitch and roll rate
 R_yaw:    20     # Cost on yaw ratte
@@ -92,8 +91,6 @@ feature_track_distance_threshold: 2.0
 global_point_position_change_threshold: 3.0
 image_u_bound: 0.58
 image_v_bound: 0.37
-# image_u_bound: 0.75
-# image_v_bound: 0.45
 
 
 # Control Limits

@@ -17,7 +17,6 @@ Autopilot<Tsystem, Tcontroller, Tparams>::Autopilot(const ros::NodeHandle& nh,
       enable_trajectory_replan_(false),
       enable_state_prediction_(false),
       enable_moving_target_track_(false),
-      enable_mpcc_mode_(false),
       enable_rc_tune_(false),
       print_info_(false),
       emergency_land_thrust_(0.0),
@@ -97,9 +96,6 @@ void Autopilot<Tsystem, Tcontroller, Tparams>::init() {
 
   reference_trajectory_sub_ = nh_.subscribe(
       "autopilot/reference_trajectory", 1, &Autopilot::referenceTrajectoryCallback, this);
-
-  trajracing_sub_ = nh_.subscribe(
-      "autopilot/trajectory_racing", 1, &Autopilot::trajectoryRacingCallback, this);
 
   flight_mode_sub_ = nh_.subscribe(
       "autopilot/flight_mode", 1, &Autopilot::flightModeCallback, this);
@@ -749,42 +745,6 @@ void Autopilot<Tsystem, Tcontroller, Tparams>::referenceTrajectoryCallback(
   // }
 }
 
-template <typename Tsystem, typename Tcontroller, typename Tparams>
-void Autopilot<Tsystem, Tcontroller, Tparams>::trajectoryRacingCallback(
-    const vision_msgs::TrajectoryRacing& msg) {
-  if (should_exit_) {
-    return;
-  }
-
-  std::lock(command_mutex_, goal_mutex_);
-  std::lock_guard<std::mutex> lk1(command_mutex_, std::adopt_lock);
-  std::lock_guard<std::mutex> lk2(goal_mutex_, std::adopt_lock);
-
-  if (getControlMode() != ControlMode::PX4_POSITION &&
-      getControlMode() != ControlMode::FSC_POSITION) {
-    return;
-  }
-
-  //TODO: change HOME to RACING
-  if (getFlightMode() != FlightMode::POSITION_TRACK &&
-      getFlightMode() != FlightMode::HOME) {
-    return;
-  }
-
-  if (msg.trajectory.type == msg.trajectory.UNDEFINED || msg.trajectory.points.size() == 0) {
-    ROS_WARN("[%s] Received invalid trajectory racing, will ignore trajectory", pnh_.getNamespace().c_str());
-    return;
-  }
-
-  ROS_INFO("trajectoryRacingCallback");
-
-  trajectory_racing_ = vision_common::Trajectory(msg.trajectory);
-  local_goal_ = vision_common::geometryToEigen(msg.local_goal);
-  gates_ = vision_common::GateFeatureArray(msg.gates);
-
-  setFlightMode(FlightMode::HOME);
-}
-
 
 template <typename Tsystem, typename Tcontroller, typename Tparams>
 void Autopilot<Tsystem, Tcontroller, Tparams>::flightModeCallback(
@@ -1169,11 +1129,10 @@ void Autopilot<Tsystem, Tcontroller, Tparams>::solveCommands() {
       trackFeature();
       break;
     case FlightMode::FEATURE_REACH:
-      reachFeature();
+      // reachFeature();
       break;
     case FlightMode::HOME:
-      // home();
-      racing();
+      home();
       break;
     case FlightMode::LAND:
       land();
@@ -1494,129 +1453,6 @@ bool Autopilot<Tsystem, Tcontroller, Tparams>::checkFeatureReach() {
 }
 
 template <typename Tsystem, typename Tcontroller, typename Tparams>
-void Autopilot<Tsystem, Tcontroller, Tparams>::goMPCC(const vision_common::StateEstimate& state_est) {
-  // std::cout << "MPCC Mode" << std::endl;
-  
-  reference_state_.position = computeReferencePosition(reaching_distance_);
-
-  Tparams controller_params = mpcc_params_;
-  controller_params.setFocus(global_point_, Eigen::Quaterniond::Identity());
-
-  // generate reference trajectory
-  if (!has_distparam_trajectory_) {
-
-    // compute current and reference euler angles 
-    Eigen::Vector3d euler_est = 
-      vision_common::quaternionToEulerAnglesZYX(state_est.orientation);
-    Eigen::Vector3d euler_ref = 
-      vision_common::quaternionToEulerAnglesZYX(reference_state_.orientation);
-    
-    vision_common::TrajectoryPoint start_state;
-    start_state.position = state_est.position;
-    start_state.heading = euler_est(2);
-    vision_common::TrajectoryPoint end_state;
-    end_state.position = reference_state_.position;
-    end_state.heading = euler_ref(2);
-    vision_common::Trajectory reference_trajectory =
-        trajectory_generation_helper::polynomials::computeTimeOptimalTrajectory(
-            start_state, end_state, order_, max_planning_vel_, max_thrust_,
-            max_roll_pitch_rate_, sample_rate_);
-    trajectory_generation_helper::heading::addConstantHeadingRate(
-        start_state.heading, end_state.heading, &reference_trajectory);
-
-    if (reference_trajectory.trajectory_type == vision_common::Trajectory::TrajectoryType::UNDEFINED ||
-        reference_trajectory.points.size() == 0) {
-      ROS_WARN("[%s] Feature reach generates an invalid trajectory", pnh_.getNamespace().c_str());
-      reference_state_.position = state_est.position;
-      reference_state_.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(vision_common::quaternionToEulerAnglesZYX(state_est.orientation).z(), Eigen::Vector3d::UnitZ()));
-      reference_state_.velocity.setZero();
-      setFlightMode(FlightMode::POSITION_TRACK);
-      trackPosition();
-      return;
-    }
-
-    distparam_trajectory_ = DistparamTrajectory(100.0, 0.5);
-    distparam_trajectory_.plan(global_point_, reference_trajectory);
-
-    has_distparam_trajectory_ = true;
-
-    vis_trajectory_pub_.publish(makeMarkerArray(reference_trajectory, Eigen::Vector3d(0,1,0)));
-  }
-
-  // specify desired reference approaching speed
-  double current_distance = state_est.gates.gates[0].center.distance;
-  double distance_gap = reaching_distance_ - current_distance;
-  if (std::fabs(distance_gap) < max_mpcc_speed_ * 0.2) {
-    // std::cout << "set velocity to zero." << std::endl;
-    reference_state_.velocity.setZero();
-    reference_state_.distance_rate = 0.0;
-  } else {
-    reference_state_.velocity.setZero();
-    reference_state_.distance_rate = -max_mpcc_speed_;  // distance should be decreasing
-  }
-
-  // set reference state
-  reference_trajectory_ = vision_common::Trajectory(reference_state_);
-  reference_trajectory_.trajectory_type = vision_common::Trajectory::TrajectoryType::GENERAL;
-
-  // assign distance-parameterized trajectory
-  if (!predicted_state_available_) {
-    controller_params.setReferenceTrajectory(distparam_trajectory_.getCoeffs(current_distance)); 
-  } else {
-    vision_common::Trajectory trajectory = vision_common::Trajectory();
-    trajectory.trajectory_type = vision_common::Trajectory::TrajectoryType::GENERAL;
-
-    for (int i = 0; i < predicted_states_.size(); ++i) {
-      double d_s = predicted_states_[i].gates.gates[0].center.distance;
-      // std::cout << i << " d_s: " << d_s << std::endl;
-
-      vision_common::TrajectoryPoint point;
-      point.orientation = Eigen::Quaterniond::Identity();
-
-      //TODO: check safety
-      double dgap_est = reaching_distance_ - d_s;
-      if (dgap_est < 0.0 && std::fabs(dgap_est) >= max_mpcc_speed_ * 0.2) {
-        controller_params.setReferenceTrajectory(i, distparam_trajectory_.getCoeffs(d_s));
-        point.position = distparam_trajectory_.getPoint(d_s);
-      } else {
-        controller_params.setReferencePoint(i, reference_state_.position); 
-        point.position = reference_state_.position;
-        // std::cout << i << " d_s: " << d_s << std::endl;
-      }
-      
-      trajectory.points.push_back(point);   
-    }
-
-    vis_dots_pub_.publish(makeMarkerArray(trajectory, Eigen::Vector3d(0,0,0)));
-  }
-
-  // compute control inputs
-  std::list<vision_common::ControlCommand> command_queue;
-  std::vector<vision_common::StateEstimate> predicted_states;
-  bool res_mpc = base_controller_.run(state_est, reference_trajectory_, controller_params, command_queue, predicted_states);
-  computation_success_ = res_mpc;
-
-  if (!res_mpc) {
-    ROS_ERROR("[%s] Fail to solve mpc. Switch to PX4_POSITION", pnh_.getNamespace().c_str());
-    command_available_ = false;
-    command_queue_.clear();
-    predicted_state_available_ = false;
-    setControlMode(ControlMode::PX4_POSITION);
-    mpc_forbiddened_ = true;
-    return;
-  }
-
-  command_queue_ = command_queue;
-  // command_queue_.pop_front();
-
-  predicted_states_ = predicted_states;
-  predicted_state_available_ = true;
-
-  command_available_ = true;
-  time_last_command_queue_updated_ = ros::Time::now();
-}
-
-template <typename Tsystem, typename Tcontroller, typename Tparams>
 Eigen::Vector3d Autopilot<Tsystem, Tcontroller, Tparams>::computeReferencePosition(const double reference_distance) {
   Eigen::Vector3d P_W_LW = global_point_;
   // Eigen::Vector3d P_W_LW(20, 0, 3.0);
@@ -1779,83 +1615,6 @@ void Autopilot<Tsystem, Tcontroller, Tparams>::trackFeature() {
 }
 
 template <typename Tsystem, typename Tcontroller, typename Tparams>
-void Autopilot<Tsystem, Tcontroller, Tparams>::reachFeature() {
-  const ros::Time time_now = ros::Time::now();
-  if (first_time_in_new_flight_mode_) {
-    first_time_in_new_flight_mode_ = false;
-  }
-
-  vision_common::StateEstimate state_est;
-  Tparams controller_params;
-  bool res_state = generateState(state_est, controller_params);
-  if (!res_state) {
-    return;
-  }
-
-  double current_distance = state_est.gates.gates[0].center.distance;
-  double distance_gap = reaching_distance_ - current_distance;
-
-  if (first_time_in_new_flight_mode_) {
-    has_distparam_trajectory_ = false;
-    predicted_state_available_ = false;
-    last_global_point_ = global_point_;
-
-    if (std::fabs(distance_gap) < 1.0) {
-      max_mpcc_speed_ = 0.0;
-    } else if (std::fabs(distance_gap) >= 1.0 && std::fabs(distance_gap) < 3.0) {
-      max_mpcc_speed_ = 0.5 * reference_speed_;
-    } else if (std::fabs(distance_gap) >= 3.0 && std::fabs(distance_gap) < 5.0) {
-      max_mpcc_speed_ = 0.8 * reference_speed_;
-    } else {
-      max_mpcc_speed_ = reference_speed_;
-    }
-
-    first_time_in_new_flight_mode_ = false;
-  }
-
-
-  if (std::fabs(distance_gap) < feature_track_distance_threshold_) {
-    ROS_INFO("[%s] Finish feature reaching task.", pnh_.getNamespace().c_str());
-    // reference_distance_ = reaching_distance_;
-    // setFlightMode(FlightMode::FEATURE_TRACK);
-    // goMPC(state_est);
-    reference_state_.position = state_est.position;
-    reference_state_.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(vision_common::quaternionToEulerAnglesZYX(state_est.orientation).z(), Eigen::Vector3d::UnitZ()));
-    reference_state_.velocity.setZero();
-    setFlightMode(FlightMode::POSITION_TRACK);
-    trackPosition();
-    return;
-  }
-
-  if (distance_gap > 0.0) {
-    ROS_WARN("[%s] Distance gap is positive.", pnh_.getNamespace().c_str());
-
-    reference_state_.position = state_est.position;
-    reference_state_.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(vision_common::quaternionToEulerAnglesZYX(state_est.orientation).z(), Eigen::Vector3d::UnitZ()));
-    reference_state_.velocity.setZero();
-    setFlightMode(FlightMode::POSITION_TRACK);
-    trackPosition();
-    return;
-  }  
-
-  if ((last_global_point_ - global_point_).norm() > global_point_position_change_threshold_) {
-    ROS_WARN("[%s] Global point is moving too much.", pnh_.getNamespace().c_str());
-    has_distparam_trajectory_ = false;
-    predicted_state_available_ = false;
-
-    // reference_state_.position = state_est.position;
-    // reference_state_.velocity.setZero();
-    // setFlightMode(FlightMode::POSITION_TRACK);
-    // trackPosition();
-    // return;
-  }
-
-  goMPCC(state_est);
-
-  last_global_point_ = global_point_;
-}
-
-template <typename Tsystem, typename Tcontroller, typename Tparams>
 void Autopilot<Tsystem, Tcontroller, Tparams>::home() {
   const ros::Time time_now = ros::Time::now();
   if (first_time_in_new_flight_mode_) {
@@ -1882,163 +1641,6 @@ bool Autopilot<Tsystem, Tcontroller, Tparams>::generateStateWithVirtualFeature(
   state_est.gates.gates[0].center = vision_common::VisualFeature(p_C_LC);
 
   return true;
-}
-
-template <typename Tsystem, typename Tcontroller, typename Tparams>
-void Autopilot<Tsystem, Tcontroller, Tparams>::racing() {
-  const ros::Time time_now = ros::Time::now();
-  if (first_time_in_new_flight_mode_) {
-    current_gate_index_ = 0.0;
-    max_mpcc_speed_ = reference_speed_;
-    predicted_state_available_ = false;
-    first_time_in_new_flight_mode_ = false;
-  }
-
-  // std::cout << "racing()" << std::endl;
-  
-  vision_common::StateEstimate state_est;
-  Tparams controller_params = mpcc_params_;
-  controller_params.setFocus(local_goal_, Eigen::Quaterniond::Identity());
-
-  // std::cout << "A" << std::endl;
-
-
-// std::cout << "B" << std::endl;
-
-  // 1. generate feature measurement using current position and local goal
-  bool res_state = generateStateWithVirtualFeature(state_est, controller_params);
-  if (!res_state) {
-    return;
-  }
-
-  // useful parameters
-  Eigen::Vector3d end_point = trajectory_racing_.points.back().position;
-  double current_distance = state_est.gates.gates[0].center.distance;
-  double distance_gap = reaching_distance_ - current_distance;
-
-  if (std::fabs(distance_gap) < 0.1) {
-    ROS_INFO("[%s] Finish racing task.", pnh_.getNamespace().c_str());
-    reference_state_.position = state_est.position;
-    reference_state_.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(vision_common::quaternionToEulerAnglesZYX(state_est.orientation).z(), Eigen::Vector3d::UnitZ()));
-    reference_state_.velocity.setZero();
-    setFlightMode(FlightMode::POSITION_TRACK);
-    trackPosition();
-    return;
-  }
-
-  if (distance_gap > 0.0) {
-    ROS_WARN("[%s] Distance gap is positive.", pnh_.getNamespace().c_str());
-    reference_state_.position = state_est.position;
-    reference_state_.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(vision_common::quaternionToEulerAnglesZYX(state_est.orientation).z(), Eigen::Vector3d::UnitZ()));
-    reference_state_.velocity.setZero();
-    setFlightMode(FlightMode::POSITION_TRACK);
-    trackPosition();
-    return;
-  }
-
-
-// std::cout << "C" << std::endl;
-
-  // 2. set reference state
-  reference_state_.position = state_est.position;
-  reference_state_.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(vision_common::quaternionToEulerAnglesZYX(state_est.orientation).z(), Eigen::Vector3d::UnitZ()));
-  if (std::fabs(distance_gap) < max_mpcc_speed_ * 0.05) {
-    reference_state_.velocity.setZero();
-    reference_state_.distance_rate = 0.0;
-  } else {
-    reference_state_.velocity.setZero();
-    reference_state_.distance_rate = -max_mpcc_speed_;  // distance should be decreasing
-  }
-// std::cout << "D" << std::endl;
-
-  // 3. set racing trajectory
-  vision_common::Trajectory reference_trajectory = vision_common::Trajectory(reference_state_);
-  reference_trajectory.trajectory_type = vision_common::Trajectory::TrajectoryType::GENERAL;
-
-  distparam_trajectory_racing_ = DistparamTrajectory(100.0, 0.5);
-  distparam_trajectory_racing_.plan(local_goal_, trajectory_racing_);
-
-  if (!predicted_state_available_) {
-    controller_params.setReferenceTrajectory(distparam_trajectory_racing_.getCoeffs(current_distance)); 
-  } else {
-    for (int i = 0; i < predicted_states_.size(); ++i) {
-      // std::cout << "predicted_states_.size(): " << predicted_states_.size() << std::endl;
-      double d_s = predicted_states_[i].gates.gates[0].center.distance;
-
-      vision_common::TrajectoryPoint point;
-      point.orientation = Eigen::Quaterniond::Identity();
-
-      //TODO: check safety
-      double dgap_est = reaching_distance_ - d_s;
-      if (dgap_est < 0.0 && std::fabs(dgap_est) >= max_mpcc_speed_ * 0.05) {
-        controller_params.setReferenceTrajectory(i, distparam_trajectory_racing_.getCoeffs(d_s));
-      } else {
-        controller_params.setReferencePoint(i, end_point);
-      }
-    }
-  }
-// std::cout << "E" << std::endl;
-
-  // 4. select the closest gate and weights
-  if (gates_.gates.empty()) {
-    ROS_ERROR("No Gate!");
-    return;
-  }
-
-  vision_common::GateFeature gate_selected;
-  bool selected = selectGate(gates_, state_est.position, gate_selected);
-  if (selected) {
-    controller_params.setGate(gate_selected.translation, gate_selected.rotation);
-    controller_params.setSize(gate_selected.width, gate_selected.height, quad_radius_);
-
-    double cost_mean = 0.0;
-    double cost_std = 0.4;
-    if (predicted_state_available_) {
-      for (int i = 0; i < predicted_states_.size(); ++i) {
-      
-        double distance_to_gate = computeDistanceToPlane(predicted_states_[i].position, gate_selected.translation, gate_selected.rotation);
-        double scale = 1e-3;
-        if (distance_to_gate > 0)
-          scale = computeGaussianScale(std::fabs(distance_to_gate), cost_mean, cost_std);
-        
-        // std::cout << i << " d2g: " << distance_to_gate << ", scale: " << scale << std::endl;
-        controller_params.setSv2Scale(i, scale);
-      }
-    } 
-  }
-
-
-
-
-
-
-
-
-// std::cout << "F" << std::endl;
-
-  // 5. solve mpcc
-  std::list<vision_common::ControlCommand> command_queue;
-  std::vector<vision_common::StateEstimate> predicted_states;
-  bool res_mpc = base_controller_.run(state_est, reference_trajectory, controller_params, command_queue, predicted_states);
-  computation_success_ = res_mpc;
-// std::cout << "G" << std::endl;
-
-  if (!res_mpc) {
-    ROS_ERROR("[%s] Fail to solve mpc. Switch to PX4_POSITION", pnh_.getNamespace().c_str());
-    command_available_ = false;
-    command_queue_.clear();
-    predicted_state_available_ = false;
-    setControlMode(ControlMode::PX4_POSITION);
-    mpc_forbiddened_ = true;
-    return;
-  }
-
-  command_queue_ = command_queue;
-  command_available_ = true;
-  predicted_states_ = predicted_states;
-  predicted_state_available_ = true;
-  time_last_command_queue_updated_ = ros::Time::now();
-
 }
 
 template <typename Tsystem, typename Tcontroller, typename Tparams>
@@ -2511,11 +2113,6 @@ bool Autopilot<Tsystem, Tcontroller, Tparams>::loadParameters() {
   vision_common::getParam("enable_moving_target_track", enable_moving_target_track_, false, pnh_);
   if (enable_moving_target_track_) {
     ROS_INFO("Enable moving target tracking.");
-  }
-
-  vision_common::getParam("enable_mpcc_mode", enable_mpcc_mode_, false, pnh_);
-  if (enable_mpcc_mode_) {
-    ROS_INFO("Enable MPCC mode.");
   }
 
   if (!base_controller_params_.loadParameters(pnh_)) {
