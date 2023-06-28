@@ -101,12 +101,11 @@ roslaunch fsc_autopilot run_autopilot_rotors_planning.launch
 
 Click feature track to switch the control from position control to our IBVS
 
-<img src="[https://mma.prnewswire.com/media/1513369/Educative_Logo.jpg](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_02.png)"  width="500">
-
-![fig2](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_02.png)
+<img src="[https://mma.prnewswire.com/media/1513369/Educative_Logo.jpg](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_02.png)"  width="300">
 
 Specify the desired distance 
-![fig3](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_03.png)
+
+<img src="[https://mma.prnewswire.com/media/1513369/Educative_Logo.jpg](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_03.png)"  width="300">
 
 And you will see the resulting flight trajectory in rviz. From the image in the left corner, we can see that our controller strives to maintain the target visual feature within the specified rectangular image bound.
 
