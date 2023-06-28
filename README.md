@@ -93,13 +93,10 @@ roslaunch fsc_autopilot run_autopilot_rotors_planning.launch
 
 Click feature track to switch the control from position control to our IBVS
 
-<p align="center">
-    <img src="fig_rqt_interface_02.png" width="500"/>
-</p>
+
+![fig2](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_02.png)
 
 Specify the desired distance 
-<p align="center">
-    <img src="fig_rqt_interface_03.png" width="500"/>
-</p>
+![fig3](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_03.png)
 
 And you will see the resulting flight trajectory in rviz.
