@@ -1,5 +1,7 @@
 # Perception-Aware Image-Based Visual Servoing of Aggressive Quadrotor UAVs
 
+![fig2](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_exp.png)
+
 ## I. Overview
 
 This IBVS control algorithm is designed for aggressive quadrotors to ensure target visibility during agile flight.
@@ -10,8 +12,11 @@ This IBVS control algorithm is designed for aggressive quadrotors to ensure targ
 
 **Video Links**: [youtube](https://www.youtube.com/watch?v=X2-SMGD99oA)
 
-![fig2](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_exp.png)
-
+<a href="[https://www.youtube.com/watch?v=G5taHOpAZj8](https://www.youtube.com/watch?v=wvtgll-iRx4)" target="blank">
+  <p align="center">
+    <img src="figs/cover.png" width="500"/>
+  </p>
+</a>
 
 
 ## II. Installation
@@ -101,11 +106,15 @@ roslaunch fsc_autopilot run_autopilot_rotors_planning.launch
 
 Click feature track to switch the control from position control to our IBVS
 
-<img src="[https://mma.prnewswire.com/media/1513369/Educative_Logo.jpg](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_02.png)"  width="300">
+<p align = "center">
+<img src="docs/fig_rqt_interface_02.png" width = "413" height = "232" border="5" />
+</p>
 
 Specify the desired distance 
 
-<img src="[https://mma.prnewswire.com/media/1513369/Educative_Logo.jpg](https://github.com/FSC-Lab/fsc_aggressive_ibvs/blob/main/docs/fig_rqt_interface_03.png)"  width="300">
+<p align = "center">
+<img src="docs/fig_rqt_interface_03.png" width = "413" height = "232" border="5" />
+</p>
 
 And you will see the resulting flight trajectory in rviz. From the image in the left corner, we can see that our controller strives to maintain the target visual feature within the specified rectangular image bound.
 
