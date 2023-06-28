@@ -123,5 +123,7 @@ And you will see the resulting flight trajectory in rviz. From the image in the 
 ## IV. Acknowledgment
 Our implementation is based on [rpg_quadrotor_control](https://github.com/uzh-rpg/rpg_quadrotor_control
 ) and [rpg_mpc](https://github.com/uzh-rpg/rpg_mpc).
-We use [ACADO](https://acado.sourceforge.net/doc/html/db/d4e/tutorial.html) as our NMPC solver
-We use [RotorS](https://github.com/ethz-asl/rotors_simulator) for quadrotor simulation
+
+We use [ACADO](https://acado.sourceforge.net/doc/html/db/d4e/tutorial.html) as our NMPC solver.
+
+We use [RotorS](https://github.com/ethz-asl/rotors_simulator) for quadrotor simulation.
