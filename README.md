@@ -1,5 +1,22 @@
 # Perception-Aware Image-Based Visual Servoing of Aggressive Quadrotor UAVs
 
+## Paper
+
+If you use this code in an academic context, please cite the following
+
+Qin, Chao, Qiuyu Yu, HS Helson Go, and Hugh H-T. Liu. "Perception-Aware Image-Based Visual Servoing of Aggressive Quadrotor UAVs." IEEE/ASME Transactions on Mechatronics (2023).
+
+Bibtex:
+```
+@article{qin2023perception,
+  title={Perception-Aware Image-Based Visual Servoing of Aggressive Quadrotor UAVs},
+  author={Qin, Chao and Yu, Qiuyu and Go, HS Helson and Liu, Hugh H-T},
+  journal={IEEE/ASME Transactions on Mechatronics},
+  year={2023},
+  publisher={IEEE}
+}
+```
+
 ## I. Overview
 
 This IBVS control algorithm is designed for aggressive quadrotors to ensure target visibility during agile flight.
