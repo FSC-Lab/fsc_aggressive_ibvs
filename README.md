@@ -77,7 +77,7 @@ git clone https://github.com/FSC-Lab/fsc_aggressive_ibvs
 ### Configure RotorS
 
 ```
-mv src/fsc_quadrotor_control/mav_fpv_sensor.gazebo src/rotors_simulator/rotors_description/urdf
+mv fsc_aggressive_ibvs/utils/mav_fpv_sensor.gazebo rotors_simulator/rotors_description/urdf
 ```
 
 We modify the weight of the simulated camera to zero for better visualization. At the ```<!-- VI-Sensor Macro -->``` in```src/rotors_simulator/rotors_description/urdf/component_snippets.xacro```
