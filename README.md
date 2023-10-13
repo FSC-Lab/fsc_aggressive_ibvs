@@ -93,7 +93,7 @@ cd ..
 catkin build
 ```
 
-
+The source file to generetate MPC C codes using acados can be found in `utils/pose_rack_mpc.cpp`
 
 ## III. Target Tracking Simulation
 
