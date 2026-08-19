@@ -20,74 +20,68 @@ static constexpr int kOdSize = ACADO_NOD;     // number of online data
 ACADOvariables acadoVariables;
 ACADOworkspace acadoWorkspace;
 
-//TODO: MPC
+// State layout (15) for the velocity-body + pitch-gimbal model, matching
+// utils/pose_track_mpc_gimbal.cpp:
+//   [p(3), psi, v(3), f1(4), r1, theta_g, dy1, dy2]
 enum class StateIndex {
   POS_X = 0,
   POS_Y = 1,
   POS_Z = 2,
-  ROT_W = 3,
-  ROT_X = 4,
-  ROT_Y = 5,
-  ROT_Z = 6,
-  VEL_X = 7,
-  VEL_Y = 8,
-  VEL_Z = 9,
-  THRUST = 10,
-  FOC_W = 11,
-  FOC_X = 12,
-  FOC_Y = 13,
-  FOC_Z = 14,
-  DISTANCE = 15,
-  SLA_1 = 16,
-  SLA_2 = 17,
+  PSI = 3,          // body heading (camera pan)
+  VEL_X = 4,
+  VEL_Y = 5,
+  VEL_Z = 6,
+  BEA_W = 7,        // bearing (line-of-sight) quaternion f1
+  BEA_X = 8,
+  BEA_Y = 9,
+  BEA_Z = 10,
+  DISTANCE = 11,    // range r1 to target
+  GIMBAL = 12,      // gimbal pitch angle theta_g (camera tilt)
+  SLA_1 = 13,       // slack integrator dy1
+  SLA_2 = 14,       // slack integrator dy2
 };
 
-//TODO: MPC
+// Cost / reference layout -- state-cost part only (14), matching hN in the model:
+//   [p(3), psi, v(3), img_u, img_v, err(3), rdot1, theta_g]
 enum class ReferenceIndex {
   POS_X = 0,
   POS_Y = 1,
   POS_Z = 2,
-  ROT_W = 3,
-  ROT_X = 4,
-  ROT_Y = 5,
-  ROT_Z = 6,
-  VEL_X = 7,
-  VEL_Y = 8,
-  VEL_Z = 9,
-  THRUST = 10,
-  IMG_U = 11,
-  IMG_V = 12,
-  ERR_X = 13, 
-  ERR_Y = 14,
-  ERR_Z = 15,
-  DISTANCE_RATE = 16,
+  PSI = 3,
+  VEL_X = 4,
+  VEL_Y = 5,
+  VEL_Z = 6,
+  IMG_U = 7,
+  IMG_V = 8,
+  ERR_X = 9,
+  ERR_Y = 10,
+  ERR_Z = 11,
+  DISTANCE_RATE = 12,
+  GIMBAL = 13,
 };
 
-//TODO: MPC
+// Control layout (7):
+//   [vx_cmd, vy_cmd, vz_cmd, psi_rate, omega_g, sv1, sv2]
 enum class ControlIndex {
-  THRUST_DOT = 0,
-  RAT_X = 1,
-  RAT_Y = 2,
-  RAT_Z = 3,
-  SLA_1 = 4,
-  SLA_2 = 5,
+  VEL_X = 0,
+  VEL_Y = 1,
+  VEL_Z = 2,
+  YAW_RATE = 3,
+  GIMBAL_RATE = 4,
+  SLA_1 = 5,
+  SLA_2 = 6,
 };
 
-//TODO: MPC
+// Online-data layout (23):
+//   [t_B_C(3), q_B_M(4), focus_p(3), poly_x(4), poly_y(4), poly_z(4), r_start(1)]
 enum OnlineDataIndex {
-  CAM_T = 0,
-  CAM_R = 3,
-  FOC_P = 7,
-  FOC_R = 10,
-  BOX_P = 14,
-  BOX_R = 17,
-  POLY_X = 21,
-  POLY_Y = 25,
-  POLY_Z = 29,
-  DISTANCE_START = 33,
-  BOX_W = 34,
-  BOX_H = 35,
-  QUAD_RADIUS = 36
+  CAM_T = 0,          // body -> gimbal-mount translation
+  MOUNT_R = 3,        // body -> gimbal-mount rotation quaternion q_B_M
+  FOC_P = 7,          // target position anchor (world)
+  POLY_X = 10,
+  POLY_Y = 14,
+  POLY_Z = 18,
+  DISTANCE_START = 22
 };
 
 template <typename T>
@@ -120,27 +114,20 @@ class MpcWrapper {
     const Eigen::Ref<const Eigen::Matrix<T, kInputSize, kInputSize>> R,
     const std::vector<T> sv2_scalings);
 
-  //TODO: MPC
-  bool setLimits(T max_thrust_rate,
-                 T max_rollrate,
-                 T max_pitchrate,
-                 T max_yawrate,
-                 T min_thrust,
-                 T max_thrust);
+  // Velocity-body + gimbal input limits.
+  bool setLimits(T max_velocity,
+                 T max_yaw_rate,
+                 T max_gimbal_rate);
 
+  // Camera mount: body -> gimbal-base translation (t_B_C) and rotation (q_B_M).
   bool setCameraParameters(
     const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& t_B_C,
-    const Eigen::Quaternion<T>& q_B_C);
+    const Eigen::Quaternion<T>& q_B_M);
 
-  //TODO: MPC
+  // Target position anchor (world) used to reconstruct the drone position.
   bool setFocusParameters(
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& focus_p,
-    const Eigen::Quaternion<T>& focus_q);
-  //TODO: MPC
-  bool setGateParameters(
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& gate_p,
-    const Eigen::Quaternion<T>& gate_q);
-  //TODO: MPC
+    const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& focus_p);
+
   bool setTrajectoryParameters(
     const Eigen::Ref<const Eigen::Matrix<T, 4, 1>>& poly_x,
     const Eigen::Ref<const Eigen::Matrix<T, 4, 1>>& poly_y,
@@ -153,8 +140,6 @@ class MpcWrapper {
     const Eigen::Ref<const Eigen::Matrix<T, 4, 1>>& poly_y,
     const Eigen::Ref<const Eigen::Matrix<T, 4, 1>>& poly_z,
     const T distance_start = 0.0);
-  //TODO: MPC
-  bool setSizeParameters(const T gate_width, const T gate_height, const T quad_radius);
 
   bool setReferencePose(
     const Eigen::Ref<const Eigen::Matrix<T, kCostSize, 1>> reference);
@@ -208,25 +193,26 @@ class MpcWrapper {
   Eigen::Map<Eigen::Matrix<float, kEndRefSize, kEndRefSize>>
     acado_W_end_{acadoVariables.WN};
 
-  //TODO: MPC
-  //TODO: remember to increase input size here
-  Eigen::Map<Eigen::Matrix<float, 6, kSamples, Eigen::ColMajor>>
+  Eigen::Map<Eigen::Matrix<float, kInputSize, kSamples, Eigen::ColMajor>>
     acado_lower_bounds_{acadoVariables.lbValues};
 
-  Eigen::Map<Eigen::Matrix<float, 6, kSamples, Eigen::ColMajor>>
+  Eigen::Map<Eigen::Matrix<float, kInputSize, kSamples, Eigen::ColMajor>>
     acado_upper_bounds_{acadoVariables.ubValues};
 
-  //TODO: MPC
-  // px,py,pz,qw,qx,qy,qz,vx,vy,vz,Th
+  // Cost weights, ordered as the model cost outputs h (21):
+  //   p(3), psi, v(3), img_u, img_v, err(3), rdot1, theta_g,
+  //   vx_cmd, vy_cmd, vz_cmd, psi_rate, omega_g, sv1, sv2
   Eigen::Matrix<T, kRefSize, kRefSize> W_ = (Eigen::Matrix<T, kRefSize, 1>() <<
     100 * Eigen::Matrix<T, 3, 1>::Ones(), // pos
-    100 * Eigen::Matrix<T, 4, 1>::Ones(), // rot
+    50 * Eigen::Matrix<T, 1, 1>::Ones(),  // yaw (psi)
     10 * Eigen::Matrix<T, 3, 1>::Ones(),  // vel
-    1 * Eigen::Matrix<T, 1, 1>::Ones(),   // thrust
-    0 * Eigen::Matrix<T, 2, 1>::Ones(), // img_uv
-    0 * Eigen::Matrix<T, 3, 1>::Ones(), // err
-    0 * Eigen::Matrix<T, 1, 1>::Ones(), // distance rate
-    1, 1, 1, 1, 1, 1).finished().asDiagonal();
+    1 * Eigen::Matrix<T, 2, 1>::Ones(),   // img_uv
+    1 * Eigen::Matrix<T, 3, 1>::Ones(),   // err
+    1 * Eigen::Matrix<T, 1, 1>::Ones(),   // distance rate
+    1 * Eigen::Matrix<T, 1, 1>::Ones(),   // gimbal angle
+    1, 1, 1,                              // vel cmd
+    1, 1,                                 // yaw rate, gimbal rate
+    1, 1).finished().asDiagonal();        // slacks
 
   Eigen::Matrix<T, kEndRefSize, kEndRefSize> WN_ =
     W_.block(0, 0, kEndRefSize, kEndRefSize);
@@ -235,9 +221,10 @@ class MpcWrapper {
 
   const T dt_{0.05};
 
-  //TODO: MPC
+  // Neutral input: zero velocity / yaw-rate / gimbal-rate / slacks.
   const Eigen::Matrix<real_t, kInputSize, 1> kHoverInput_ =
-    (Eigen::Matrix<real_t, kInputSize, 1>() << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).finished();
+    (Eigen::Matrix<real_t, kInputSize, 1>() <<
+       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).finished();
 };
 
 }

@@ -6,6 +6,7 @@ uint8 ATTITUDE=1
 uint8 BODY_RATES=2
 uint8 ANGULAR_ACCELERATIONS=3
 uint8 ROTOR_THRUSTS=4
+uint8 VELOCITY=5
 
 Header header
 
@@ -41,3 +42,11 @@ float64 thrust_rate
 # Single rotor thrusts [N]
 # These are only considered in the ROTOR_THRUSTS control mode
 float64[] rotor_thrusts
+
+# --- VELOCITY control mode (velocity-controlled body + gimbal variant) ---
+# Commanded world-frame linear velocity [m/s] (considered in VELOCITY mode)
+geometry_msgs/Vector3 velocity
+# Commanded yaw rate [rad/s] (pans the camera)
+float64 yaw_rate
+# Commanded 1-axis gimbal pitch (tilt) angle [rad]
+float64 gimbal_angle

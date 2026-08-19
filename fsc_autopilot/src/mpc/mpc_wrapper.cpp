@@ -12,24 +12,24 @@ MpcWrapper<T>::MpcWrapper() {
   acado_initializeSolver();
 
   // Initialize the states and controls.
-  //TODO: MPC
+  // State (15): p(3), psi, v(3), f1(4), r1, theta_g, dy1, dy2
   const Eigen::Matrix<T, kStateSize, 1> hover_state =
       (Eigen::Matrix<T, kStateSize, 1>() << 0.0, 0.0, 0.0,
-                                            1.0, 0.0, 0.0, 0.0,
-                                            0.0, 0.0, 0.0,
-                                            9.81,
-                                            1.0, 0.0, 0.0, 0.0, // bearing vector
-                                            10.0,
-                                            0.0, 0.0).finished();
-  //TODO: MPC                          
+                                            0.0,                 // psi
+                                            0.0, 0.0, 0.0,       // vel
+                                            1.0, 0.0, 0.0, 0.0,  // bearing quaternion
+                                            10.0,                // range
+                                            0.0,                 // gimbal angle
+                                            0.0, 0.0).finished();// slack integrators
+  // Cost-state reference (14): p(3), psi, v(3), img_u, img_v, err(3), rdot1, theta_g
   const Eigen::Matrix<T, kCostSize, 1> hover_ref =
       (Eigen::Matrix<T, kCostSize, 1>() << 0.0, 0.0, 0.0,
-                                           1.0, 0.0, 0.0, 0.0,
-                                           0.0, 0.0, 0.0,
-                                           9.81,
-                                           0.0, 0.0, // img_uv
-                                           0.0, 0.0, 0.0, // err
-                                           0.0).finished();
+                                           0.0,            // psi
+                                           0.0, 0.0, 0.0,  // vel
+                                           0.0, 0.0,       // img_uv
+                                           0.0, 0.0, 0.0,  // err
+                                           0.0,            // distance rate
+                                           0.0).finished();// gimbal angle
 
   // Initialize states x and xN and input u.
   acado_initial_state_ = hover_state.template cast<float>();
@@ -59,12 +59,10 @@ MpcWrapper<T>::MpcWrapper() {
   Eigen::Matrix<T, 3, 1> p_init(0, 0, 0);
   Eigen::Quaternion<T> q_init(1, 0, 0, 0);
   setCameraParameters(p_init, q_init);
-  setFocusParameters(p_init, q_init);
-  setGateParameters(p_init, q_init);
+  setFocusParameters(p_init);
   setTrajectoryParameters(Eigen::Matrix<T, 4, 1>::Zero(),
                           Eigen::Matrix<T, 4, 1>::Zero(),
                           Eigen::Matrix<T, 4, 1>::Zero());
-  setSizeParameters(1.0, 1.0, 0.0);
 
   // Initialize solver.
   acado_initializeNodesByForwardSimulation();
@@ -145,8 +143,9 @@ bool MpcWrapper<T>::setSv1ScaledCosts(
            R.diagonal()[1],
            R.diagonal()[2],
            R.diagonal()[3],
-           std::max(float(R.diagonal()[4]*sv1_scalings[i]), 0.001f),
-           R.diagonal()[5]).finished().asDiagonal();
+           R.diagonal()[4],
+           std::max(float(R.diagonal()[5]*sv1_scalings[i]), 0.001f),
+           R.diagonal()[6]).finished().asDiagonal();
 
     setCost(i, Q, R_scaled);
   }
@@ -166,7 +165,8 @@ bool MpcWrapper<T>::setSv2ScaledCosts(
            R.diagonal()[2],
            R.diagonal()[3],
            R.diagonal()[4],
-           std::max(float(R.diagonal()[5]*sv2_scalings[i]), 0.001f)).finished().asDiagonal();
+           R.diagonal()[5],
+           std::max(float(R.diagonal()[6]*sv2_scalings[i]), 0.001f)).finished().asDiagonal();
 
     setCost(i, Q, R_scaled);
   }
@@ -175,47 +175,27 @@ bool MpcWrapper<T>::setSv2ScaledCosts(
 
 
 
-// Set the input limits.
-//TODO: MPC  
+// Set the input limits (velocity body + pitch gimbal).
 template <typename T>
 bool MpcWrapper<T>::setLimits(
-    T max_thrust_rate,
-    T max_rollrate,
-    T max_pitchrate,
-    T max_yawrate,
-    T min_thrust,
-    T max_thrust) {
+    T max_velocity,
+    T max_yaw_rate,
+    T max_gimbal_rate) {
 
-  if (max_thrust_rate <= 0.0 || max_rollrate <= 0.0) {
+  if (max_velocity <= 0.0 || max_yaw_rate <= 0.0 || max_gimbal_rate <= 0.0) {
     ROS_ERROR("MPC: Maximal values are not set properly.");
-    return false;
-  }
-
-  if (max_pitchrate <= 0.0 || max_yawrate <= 0.0) {
-    ROS_ERROR("MPC: Maximal values are not set properly.");
-    return false;
-  }
-  
-  if (min_thrust <= 0.0 || min_thrust > max_thrust) {
-    ROS_ERROR("MPC: Minimal thrust is not set properly.");
-    return false;
-  }
-
-  if (max_thrust <= 0.0 || min_thrust > max_thrust) {
-    ROS_ERROR("MPC: Maximal thrust is not set properly.");
     return false;
   }
 
   // Set input boundaries.
+  //   [vx_cmd, vy_cmd, vz_cmd, psi_rate, omega_g, sv1, sv2]
   Eigen::Matrix<T, kInputSize, 1> lower_bounds = Eigen::Matrix<T, kInputSize, 1>::Zero();
   Eigen::Matrix<T, kInputSize, 1> upper_bounds = Eigen::Matrix<T, kInputSize, 1>::Zero();
 
-  lower_bounds << -max_thrust_rate, -max_rollrate, -max_pitchrate, -max_yawrate, 0.0, 0.0;
-  upper_bounds << max_thrust_rate, max_rollrate, max_pitchrate, max_yawrate, 1000.0, 1000.0;
-
-  // lower_bounds << -max_thrust_rate, -0.45, -0.77, -0.07, 0.0, 0.0;
-  // upper_bounds << max_thrust_rate, 0.93, 0.41, 0.07, 1000.0, 1000.0;
-
+  lower_bounds << -max_velocity, -max_velocity, -max_velocity,
+                  -max_yaw_rate, -max_gimbal_rate, 0.0, 0.0;
+  upper_bounds << max_velocity, max_velocity, max_velocity,
+                  max_yaw_rate, max_gimbal_rate, 1000.0, 1000.0;
 
   acado_lower_bounds_ =
       lower_bounds.replicate(1, kSamples).template cast<float>();
@@ -225,49 +205,27 @@ bool MpcWrapper<T>::setLimits(
   return true;
 }
 
-// Set camera extrinsics.
+// Set camera mount: body -> gimbal-base translation + rotation.
 template <typename T>
 bool MpcWrapper<T>::setCameraParameters(
     const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& t_B_C,
-    const Eigen::Quaternion<T>& q_B_C) {
+    const Eigen::Quaternion<T>& q_B_M) {
   acado_online_data_.block(OnlineDataIndex::CAM_T, 0, 3, ACADO_N + 1) =
       t_B_C.replicate(1, ACADO_N + 1).template cast<float>();
 
-  Eigen::Matrix<T, 4, 1> q_B_C_mat(q_B_C.w(), q_B_C.x(), q_B_C.y(), q_B_C.z());
-  acado_online_data_.block(OnlineDataIndex::CAM_R, 0, 4, ACADO_N + 1) =
-      q_B_C_mat.replicate(1, ACADO_N + 1).template cast<float>();
+  Eigen::Matrix<T, 4, 1> q_B_M_mat(q_B_M.w(), q_B_M.x(), q_B_M.y(), q_B_M.z());
+  acado_online_data_.block(OnlineDataIndex::MOUNT_R, 0, 4, ACADO_N + 1) =
+      q_B_M_mat.replicate(1, ACADO_N + 1).template cast<float>();
 
   return true;
 }
 
-//TODO: MPC
+// Set the target position anchor (world frame).
 template <typename T>
 bool MpcWrapper<T>::setFocusParameters(
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& focus_p,
-    const Eigen::Quaternion<T>& focus_q) {
-  //TODO:
+    const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& focus_p) {
   acado_online_data_.block(OnlineDataIndex::FOC_P, 0, 3, ACADO_N + 1) =
       focus_p.replicate(1, ACADO_N + 1).template cast<float>();
-
-  Eigen::Matrix<T, 4, 1> focus_q_mat(focus_q.w(), focus_q.x(), focus_q.y(), focus_q.z());
-  acado_online_data_.block(OnlineDataIndex::FOC_R, 0, 4, ACADO_N + 1) =
-      focus_q_mat.replicate(1, ACADO_N + 1).template cast<float>();
-
-  return true;
-}
-
-//TODO: MPC
-template <typename T>
-bool MpcWrapper<T>::setGateParameters(
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 1>>& gate_p,
-    const Eigen::Quaternion<T>& gate_q) {
-  //TODO:
-  acado_online_data_.block(OnlineDataIndex::BOX_P, 0, 3, ACADO_N + 1) =
-      gate_p.replicate(1, ACADO_N + 1).template cast<float>();
-
-  Eigen::Matrix<T, 4, 1>gate_q_mat(gate_q.w(), gate_q.x(), gate_q.y(), gate_q.z());
-  acado_online_data_.block(OnlineDataIndex::BOX_R, 0, 4, ACADO_N + 1) =
-      gate_q_mat.replicate(1, ACADO_N + 1).template cast<float>();
 
   return true;
 }
@@ -312,24 +270,6 @@ bool MpcWrapper<T>::setTrajectoryParameters(
   acado_online_data_.block(OnlineDataIndex::POLY_Z, node_index, 4, 1) = poly_z.template cast<float>();
   acado_online_data_.block(OnlineDataIndex::DISTANCE_START, node_index, 1, 1) << static_cast<float>(distance_start);
 
-  return true;
-}
-
-template <typename T>
-bool MpcWrapper<T>::setSizeParameters(
-    const T gate_width,
-    const T gate_height,
-    const T quad_radius) {
-  acado_online_data_.block(OnlineDataIndex::BOX_W, 0, 1, ACADO_N + 1) =
-      (Eigen::Matrix<T, 1, 1>() << gate_width).finished().replicate(1, ACADO_N + 1).template cast<float>();
-  acado_online_data_.block(OnlineDataIndex::BOX_H, 0, 1, ACADO_N + 1) =
-      (Eigen::Matrix<T, 1, 1>() << gate_height).finished().replicate(1, ACADO_N + 1).template cast<float>();
-  acado_online_data_.block(OnlineDataIndex::QUAD_RADIUS, 0, 1, ACADO_N + 1) =
-      (Eigen::Matrix<T, 1, 1>() << quad_radius).finished().replicate(1, ACADO_N + 1).template cast<float>();
-
-  // acado_online_data_.block(OnlineDataIndex::BOX_W, node_index, 1, 1) << static_cast<float>(gate_width);
-  // acado_online_data_.block(OnlineDataIndex::BOX_H, node_index, 1, 1) << static_cast<float>(gate_height);
-  // acado_online_data_.block(OnlineDataIndex::QUAD_RADIUS, node_index, 1, 1) << static_cast<float>(quad_radius);
   return true;
 }
 
@@ -391,14 +331,10 @@ bool MpcWrapper<T>::update(
     return false;
   }
 
-  // Check if estimated and reference quaternion live in sthe same hemisphere.
-  //TODO: MPC
+  // Velocity-body model: heading is a plain angle, no quaternion hemisphere
+  // flip needed (the body attitude quaternion is no longer a state).
   acado_initial_state_ = state.template cast<float>();
-  if (acado_initial_state_.segment((int)StateIndex::ROT_W, 4).dot(Eigen::Vector4f(
-          acado_reference_states_.block((int)ReferenceIndex::ROT_W, 0, 4, 1))) < (T)0.0) {
-    acado_initial_state_.segment((int)StateIndex::ROT_W, 4) = -acado_initial_state_.segment((int)StateIndex::ROT_W, 4);
-  }
-  
+
   // Perform feedback step and reset preparation check.
   acado_feedbackStep();
   acado_is_prepared_ = false;

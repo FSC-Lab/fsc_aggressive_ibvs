@@ -10,7 +10,8 @@ enum class ControlMode {
   ATTITUDE,
   BODY_RATES,
   ANGULAR_ACCELERATIONS,
-  ROTOR_THRUSTS
+  ROTOR_THRUSTS,
+  VELOCITY
 };
 
 struct ControlCommand {
@@ -49,6 +50,14 @@ struct ControlCommand {
   // Collective mass normalized thrust
   double collective_thrust;  // [m/s^2]
   double thrust_rate;
+
+  // --- VELOCITY control mode (velocity-controlled body + gimbal variant) ---
+  // Commanded world-frame linear velocity [m/s]
+  Eigen::Vector3d velocity;
+  // Commanded yaw rate [rad/s] (pans the camera)
+  double yaw_rate;
+  // Commanded 1-axis gimbal pitch (tilt) angle [rad]
+  double gimbal_angle;
 
   std::vector<double> slack_variables;  // [m/s^2]
 

@@ -31,10 +31,10 @@ class MpcController {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  //TODO: MPC
-  static_assert(kStateSize == 18,
+  // Velocity-body + pitch-gimbal model (utils/pose_track_mpc_gimbal.cpp).
+  static_assert(kStateSize == 15,
                 "MpcController: Wrong model size. Number of states does not match.");
-  static_assert(kInputSize == 6,
+  static_assert(kInputSize == 7,
                 "MpcController: Wrong model size. Number of inputs does not match.");
 
   MpcController(const ros::NodeHandle& nh,
@@ -59,7 +59,12 @@ class MpcController {
            std::list<vision_common::ControlCommand>& command_queue);
 
   void reset();
-  
+
+  // Feedback of the current gimbal pitch angle [rad] (camera tilt). If gimbal
+  // encoder feedback is available, the autopilot pushes it here; otherwise the
+  // controller warm-starts from its own last prediction.
+  void setGimbalAngle(const T gimbal_angle) { gimbal_angle_ = gimbal_angle; }
+
  private:
   
 //   void offCallback(const std_msgs::Empty::ConstPtr& msg);
@@ -102,6 +107,7 @@ class MpcController {
   // Variables
   T timing_feedback_, timing_preparation_;
   bool solve_from_scratch_;
+  T gimbal_angle_{0.0};  // current gimbal pitch feedback [rad]
   Eigen::Matrix<T, kStateSize, 1> est_state_;
   Eigen::Matrix<T, kCostSize, kSamples + 1> reference_states_;
   Eigen::Matrix<T, kInputSize, kSamples + 1> reference_inputs_;

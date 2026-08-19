@@ -53,25 +53,24 @@ init_heading:         0.0
 home_position:        [ 0.0, 0.0, 0.5 ]
 home_heading:         0.0
 
-# MPC Parameters
-control_mode:                 2
+# MPC Parameters (VELOCITY-body + 1-axis PITCH-gimbal variant)
+control_mode:                 5   # VELOCITY
 state_cost_exponential: 0.0     # Scaling for state costs
 input_cost_exponential: 0.0     # scaling for input costs
-Q_pos_xy:     200     
+Q_pos_xy:     200
 Q_pos_z:      200
-Q_att:   50
-Q_vel:   10
-Q_thr: 0
+Q_yaw:        50     # Cost on body heading (camera pan)
+Q_vel:        10
+Q_gimbal:     1      # Regularize gimbal pitch (camera tilt)
 
 Q_img_u: 0
 Q_img_v: 0
 Q_err:   0
 Q_drate: 0
 
-R_thrust:     1  # Cost on thrust rate input
-R_roll:   60     # Cost on pitch and roll rate
-R_pitch:  60     # Cost on pitch and roll rate
-R_yaw:    20     # Cost on yaw ratte
+R_vel:         1     # Cost on commanded velocity
+R_yaw_rate:    20    # Cost on yaw rate (camera pan)
+R_gimbal_rate: 10    # Cost on gimbal pitch rate (camera tilt)
 R_sv1: 0.001
 R_sv2: 0.001
 
@@ -93,17 +92,26 @@ image_u_bound: 0.58
 image_v_bound: 0.37
 
 
-# Control Limits
-max_thrust_rate:    40
-max_bodyrate_x:    3.0       # ~ pi [rad/s]
-max_bodyrate_y:    3.0       # ~ pi [rad/s]
-max_bodyrate_z:     1.5      # ~ pi*2/3 [rad/s]
-min_thrust:         1.0       # ~ 20% gravity [N]
-max_thrust:         20.0      # ~ 200% gravity [N]
+# Control Limits (velocity-body + pitch-gimbal)
+max_velocity:       8.0       # max commanded speed per axis [m/s]
+max_yaw_rate:       1.5       # max yaw rate / camera pan [rad/s]
+max_gimbal_rate:    3.0       # max gimbal pitch rate / camera tilt [rad/s]
+gimbal_angle_min:   -1.5708   # gimbal travel lower bound [rad] (-90 deg)
+gimbal_angle_max:    0.5236   # gimbal travel upper bound [rad] (+30 deg)
 thrust_ratio:       1.42
 predictive_control_lookahead: 1.0
 control_command_delay: 0.005
 
-# Camera Extrinsics
-t_B_C:      [ 0.0, 0.0, 0.15 ]        # camera in body center [m]
-q_B_C:      [ 0.5, -0.5, 0.5, -0.5 ]  # point forward
+# Legacy CTBR limits (retained for the non-MPC autopilot loader; unused by
+# the velocity+gimbal MPC).
+max_thrust_rate:    40
+max_bodyrate_x:    3.0
+max_bodyrate_y:    3.0
+max_bodyrate_z:     1.5
+min_thrust:         1.0
+max_thrust:         20.0
+
+# Camera Mount (body -> gimbal base)
+t_B_C:      [ 0.0, 0.0, 0.15 ]        # gimbal base in body frame [m]
+q_B_M:      [ 0.5, -0.5, 0.5, -0.5 ]  # mount rotation (camera points forward)
+q_B_C:      [ 0.5, -0.5, 0.5, -0.5 ]  # legacy alias, used if q_B_M is absent

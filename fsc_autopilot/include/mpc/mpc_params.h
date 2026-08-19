@@ -16,11 +16,15 @@ struct PolynomialParams {
       poly_z(Eigen::Matrix<T, 4, 1>::Zero()),
       distance_start(0.0) {}
   Eigen::Matrix<T, 4, 1> poly_x;
-  Eigen::Matrix<T, 4, 1> poly_y;  
-  Eigen::Matrix<T, 4, 1> poly_z; 
-  T distance_start; 
+  Eigen::Matrix<T, 4, 1> poly_y;
+  Eigen::Matrix<T, 4, 1> poly_z;
+  T distance_start;
 };
 
+// Parameters for the VELOCITY-body + 1-axis PITCH-gimbal MPC variant.
+// Cost layout (kCostSize == 14): p(3), psi, v(3), img_u, img_v, err(3),
+//                                distance_rate, theta_g
+// Input layout (kInputSize == 7): vx, vy, vz, psi_rate, omega_g, sv1, sv2
 template <typename T>
 class MpcParams {
  public:
@@ -31,21 +35,17 @@ class MpcParams {
         print_info_(false),
         state_cost_exponential_(0.0),
         input_cost_exponential_(0.0),
-        max_thrust_rate_(0.0),
-        max_bodyrate_x_(0.0),
-        max_bodyrate_y_(0.0),
-        max_bodyrate_z_(0.0),
-        min_thrust_(0.0),
-        max_thrust_(0.0),
+        max_velocity_(0.0),
+        max_yaw_rate_(0.0),
+        max_gimbal_rate_(0.0),
+        gimbal_angle_min_(0.0),
+        gimbal_angle_max_(0.0),
         t_B_C_(Eigen::Matrix<T, 3, 1>::Zero()),
-        q_B_C_(Eigen::Quaternion<T>(1.0, 0.0, 0.0, 0.0)),
+        q_B_M_(Eigen::Quaternion<T>(1.0, 0.0, 0.0, 0.0)),
         focus_p_(Eigen::Matrix<T, 3, 1>::Zero()),
-        focus_q_(Eigen::Quaternion<T>(1.0, 0.0, 0.0, 0.0)),
-        gate_p_(Eigen::Matrix<T, 3, 1>::Zero()),
-        gate_q_(Eigen::Quaternion<T>(1.0, 0.0, 0.0, 0.0)), 
         Q_(Eigen::Matrix<T, kCostSize, kCostSize>::Zero()),
         R_(Eigen::Matrix<T, kInputSize, kInputSize>::Zero()) {
-    polynomial_trajectory_.resize(kSamples + 1); 
+    polynomial_trajectory_.resize(kSamples + 1);
     sv1_scalings_ = std::vector<T>(kSamples, 1.0);
     sv2_scalings_ = std::vector<T>(kSamples, 1.0);
   }
@@ -58,6 +58,15 @@ class MpcParams {
 
     Q_pos_xy_ = Q_pos_xy;
     Q_pos_z_ = Q_pos_z;
+
+    changed_ = true;
+  }
+
+  void setYawWeight(const double Q_yaw) {
+    Q_.block((int)ReferenceIndex::PSI, (int)ReferenceIndex::PSI, 1, 1) =
+        (Eigen::Matrix<T, 1, 1>() << Q_yaw).finished().asDiagonal();
+
+    Q_yaw_ = Q_yaw;
 
     changed_ = true;
   }
@@ -75,7 +84,7 @@ class MpcParams {
     Q_.block((int)ReferenceIndex::ERR_X, (int)ReferenceIndex::ERR_X, 3, 3) = (Eigen::Matrix<T, 3, 1>()
         << Q_err, Q_err, Q_err).finished().asDiagonal();
 
-    Q_err_ = Q_err_;
+    Q_err_ = Q_err;
 
     changed_ = true;
   }
@@ -84,7 +93,7 @@ class MpcParams {
       const double Q_img_u,
       const double Q_img_v) {
     Q_.block((int)ReferenceIndex::IMG_U, (int)ReferenceIndex::IMG_U, 2, 2) = (Eigen::Matrix<T, 2, 1>()
-        << Q_img_u, Q_img_v).finished().asDiagonal();    
+        << Q_img_u, Q_img_v).finished().asDiagonal();
 
     Q_img_u_ = Q_img_u;
     Q_img_v_ = Q_img_v;
@@ -95,9 +104,18 @@ class MpcParams {
   void setReferenceSpeed(
       const double Q_drate) {
     Q_.block((int)ReferenceIndex::DISTANCE_RATE, (int)ReferenceIndex::DISTANCE_RATE, 1, 1) = (Eigen::Matrix<T, 1, 1>()
-        << Q_drate).finished().asDiagonal();    
+        << Q_drate).finished().asDiagonal();
 
     Q_drate_ = Q_drate;
+
+    changed_ = true;
+  }
+
+  void setGimbalWeight(const double Q_gimbal) {
+    Q_.block((int)ReferenceIndex::GIMBAL, (int)ReferenceIndex::GIMBAL, 1, 1) =
+        (Eigen::Matrix<T, 1, 1>() << Q_gimbal).finished().asDiagonal();
+
+    Q_gimbal_ = Q_gimbal;
 
     changed_ = true;
   }
@@ -106,7 +124,7 @@ class MpcParams {
       const double R_sv1,
       const double R_sv2) {
     R_.block((int)ControlIndex::SLA_1, (int)ControlIndex::SLA_1, 2, 2) = (Eigen::Matrix<T, 2, 1>()
-        << R_sv1, R_sv2).finished().asDiagonal();    
+        << R_sv1, R_sv2).finished().asDiagonal();
 
     R_sv1_ = R_sv1;
     R_sv2_ = R_sv2;
@@ -117,7 +135,7 @@ class MpcParams {
   void setSv1Weight(
       const double R_sv1) {
     R_.block((int)ControlIndex::SLA_1, (int)ControlIndex::SLA_1, 1, 1) = (Eigen::Matrix<T, 1, 1>()
-        << R_sv1).finished().asDiagonal();    
+        << R_sv1).finished().asDiagonal();
 
     R_sv1_ = R_sv1;
 
@@ -127,7 +145,7 @@ class MpcParams {
   void setSv2Weight(
       const double R_sv2) {
     R_.block((int)ControlIndex::SLA_2, (int)ControlIndex::SLA_2, 1, 1) = (Eigen::Matrix<T, 1, 1>()
-        << R_sv2).finished().asDiagonal();    
+        << R_sv2).finished().asDiagonal();
 
     R_sv2_ = R_sv2;
 
@@ -164,33 +182,20 @@ class MpcParams {
     changed_ = true;
   }
 
+  // Camera mount: body -> gimbal-base translation (t_B_C) and rotation (q_B_M).
   void setCameraExtrinsics(const Eigen::Vector3d& t_B_C,
-                           const Eigen::Quaterniond& q_B_C) {
+                           const Eigen::Quaterniond& q_B_M) {
     t_B_C_ = Eigen::Matrix<T, 3, 1>(t_B_C[0], t_B_C[1], t_B_C[2]);
-    q_B_C_ = Eigen::Quaternion<T>(q_B_C.w(), q_B_C.x(), q_B_C.y(), q_B_C.z());
+    q_B_M_ = Eigen::Quaternion<T>(q_B_M.w(), q_B_M.x(), q_B_M.y(), q_B_M.z());
     changed_ = true;
   }
 
+  // Target position anchor (world). The quaternion argument is kept for
+  // call-site compatibility but is unused by the velocity+gimbal model.
   void setFocus(const Eigen::Vector3d& focus_p,
-                const Eigen::Quaterniond& focus_q) {
-    focus_p_ = Eigen::Matrix<T, 3, 1>(focus_p[0], focus_p[1], focus_p[2]);                 
-    focus_q_ = Eigen::Quaternion<T>(focus_q.w(), focus_q.x(), focus_q.y(), focus_q.z());
+                const Eigen::Quaterniond& /*focus_q*/ = Eigen::Quaterniond::Identity()) {
+    focus_p_ = Eigen::Matrix<T, 3, 1>(focus_p[0], focus_p[1], focus_p[2]);
     changed_ = true;
-  }
-
-  void setGate(const Eigen::Vector3d& gate_p,
-               const Eigen::Quaterniond& gate_q) {
-    gate_p_ = Eigen::Matrix<T, 3, 1>(gate_p[0], gate_p[1], gate_p[2]);                 
-    gate_q_ = Eigen::Quaternion<T>(gate_q.w(), gate_q.x(), gate_q.y(), gate_q.z());
-    changed_ = true;
-  }
-
-  void setSize(const double gate_width,
-               const double gate_height,
-               const double quad_radius) {
-    gate_width_ = (T)gate_width;
-    gate_height_ = (T)gate_height;
-    quad_radius_ = (T)quad_radius;
   }
 
   void setReferencePoint(const Eigen::Vector3d& point) {
@@ -270,49 +275,47 @@ class MpcParams {
 #define GET_PARAM_(name) \
   if (!vision_common::getParam(#name, name##_, pnh)) return false
 
+    // State costs.
     GET_PARAM_(Q_pos_xy);
     GET_PARAM_(Q_pos_z);
-    GET_PARAM_(Q_att);
+    GET_PARAM_(Q_yaw);
     GET_PARAM_(Q_vel);
-    GET_PARAM_(Q_thr);
     GET_PARAM_(Q_img_u);
     GET_PARAM_(Q_img_v);
     GET_PARAM_(Q_err);
     GET_PARAM_(Q_drate);
+    GET_PARAM_(Q_gimbal);
 
-    if (Q_pos_xy_ < 0.0 || Q_pos_z_ < 0.0 || Q_att_ < 0.0 || Q_vel_ < 0.0) {
-      ROS_ERROR("MPC: State cost Q has negative enries!");
+    if (Q_pos_xy_ < 0.0 || Q_pos_z_ < 0.0 || Q_yaw_ < 0.0 || Q_vel_ < 0.0 ||
+        Q_gimbal_ < 0.0) {
+      ROS_ERROR("MPC: State cost Q has negative entries!");
       return false;
     }
 
-    if (Q_thr_ < 0.0) {
-      ROS_ERROR("MPC: State cost Q has negative enries!");
-      return false;
-    }
-
-    // Read input costs.
-    GET_PARAM_(R_thrust);
-    GET_PARAM_(R_roll);
-    GET_PARAM_(R_pitch);
-    GET_PARAM_(R_yaw);
+    // Input costs.
+    GET_PARAM_(R_vel);
+    GET_PARAM_(R_yaw_rate);
+    GET_PARAM_(R_gimbal_rate);
     GET_PARAM_(R_sv1);
     GET_PARAM_(R_sv2);
 
-    // Check whether all input costs are positive.
-    if (R_thrust_ <= 0.0 || R_roll_ <= 0.0 || R_pitch_ <= 0.0 || R_yaw_ <= 0.0) {
-      ROS_ERROR("MPC: Input cost R has negative enries!");
+    if (R_vel_ <= 0.0 || R_yaw_rate_ <= 0.0 || R_gimbal_rate_ <= 0.0) {
+      ROS_ERROR("MPC: Input cost R has non-positive entries!");
       return false;
     }
 
     // Set state and input cost matrices.
     Q_ = (Eigen::Matrix<T, kCostSize, 1>() <<
           Q_pos_xy_, Q_pos_xy_, Q_pos_z_,
-          Q_att_, Q_att_, Q_att_, Q_att_,
-          Q_vel_, Q_vel_, Q_vel_, Q_thr_,
+          Q_yaw_,
+          Q_vel_, Q_vel_, Q_vel_,
           Q_img_u_, Q_img_v_,
-          Q_err_,  Q_err_, Q_err_, Q_drate_).finished().asDiagonal();
+          Q_err_, Q_err_, Q_err_,
+          Q_drate_,
+          Q_gimbal_).finished().asDiagonal();
     R_ = (Eigen::Matrix<T, kInputSize, 1>() <<
-          R_thrust_, R_roll_, R_pitch_, R_yaw_,
+          R_vel_, R_vel_, R_vel_,
+          R_yaw_rate_, R_gimbal_rate_,
           R_sv1_, R_sv2_).finished().asDiagonal();
 
     // Read cost scaling values
@@ -321,36 +324,34 @@ class MpcParams {
     vision_common::getParam("input_cost_exponential", input_cost_exponential_,
                             (T)0.0, pnh);
 
-    // Read input limits.
-    GET_PARAM_(max_thrust_rate);
-    GET_PARAM_(max_bodyrate_x);
-    GET_PARAM_(max_bodyrate_y);
-    GET_PARAM_(max_bodyrate_z);
-    GET_PARAM_(min_thrust);
-    GET_PARAM_(max_thrust);
-    GET_PARAM_(gate_width);
-    GET_PARAM_(gate_height);
-    GET_PARAM_(quad_radius);
+    // Read input / state limits.
+    GET_PARAM_(max_velocity);
+    GET_PARAM_(max_yaw_rate);
+    GET_PARAM_(max_gimbal_rate);
+    GET_PARAM_(gimbal_angle_min);
+    GET_PARAM_(gimbal_angle_max);
 
-    // Check whether all input limits are positive.
-    if (max_thrust_rate_ <= 0.0 || max_bodyrate_x_ <= 0.0 ||
-        max_bodyrate_y_ <= 0.0 || max_bodyrate_z_ <= 0.0 ||
-        min_thrust_ <= 0.0 || max_thrust_ <= 0.0) {
-      ROS_ERROR("MPC: All limits must be positive non-zero values!");
+    if (max_velocity_ <= 0.0 || max_yaw_rate_ <= 0.0 || max_gimbal_rate_ <= 0.0) {
+      ROS_ERROR("MPC: All rate/velocity limits must be positive non-zero values!");
+      return false;
+    }
+    if (gimbal_angle_min_ >= gimbal_angle_max_) {
+      ROS_ERROR("MPC: gimbal_angle_min must be smaller than gimbal_angle_max!");
       return false;
     }
 
-    // Optional parameters
-    std::vector<T> t_B_C(3), q_B_C(4);
+    // Camera mount extrinsics (body -> gimbal base).
+    std::vector<T> t_B_C(3), q_B_M(4);
     if (!pnh.getParam("t_B_C", t_B_C)) {
-      ROS_WARN("MPC: Camera extrinsic translation is not set.");
+      ROS_WARN("MPC: Camera mount translation (t_B_C) is not set.");
     } else {
       t_B_C_ = Eigen::Matrix<T, 3, 1>(t_B_C[0], t_B_C[1], t_B_C[2]);
     }
-    if (!pnh.getParam("q_B_C", q_B_C)) {
-      ROS_WARN("MPC: Camera extrinsic rotation is not set.");
+    // Accept either q_B_M (preferred) or the legacy q_B_C key.
+    if (pnh.getParam("q_B_M", q_B_M) || pnh.getParam("q_B_C", q_B_M)) {
+      q_B_M_ = Eigen::Quaternion<T>(q_B_M[0], q_B_M[1], q_B_M[2], q_B_M[3]);
     } else {
-      q_B_C_ = Eigen::Quaternion<T>(q_B_C[0], q_B_C[1], q_B_C[2], q_B_C[3]);
+      ROS_WARN("MPC: Camera mount rotation (q_B_M / q_B_C) is not set.");
     }
 
     vision_common::getParam("print_info", print_info_, false, pnh);
@@ -367,26 +368,17 @@ class MpcParams {
   T state_cost_exponential_;
   T input_cost_exponential_;
 
-  T max_thrust_rate_;
-  T max_bodyrate_x_;
-  T max_bodyrate_y_;
-  T max_bodyrate_z_;
-
-  T min_thrust_;
-  T max_thrust_;
-
-  T gate_width_;
-  T gate_height_;
-  T quad_radius_;
+  // Input / state limits.
+  T max_velocity_;       // max commanded speed per axis [m/s]
+  T max_yaw_rate_;       // max yaw rate (camera pan) [rad/s]
+  T max_gimbal_rate_;    // max gimbal pitch rate (camera tilt) [rad/s]
+  T gimbal_angle_min_;   // gimbal travel lower bound [rad]
+  T gimbal_angle_max_;   // gimbal travel upper bound [rad]
 
   Eigen::Matrix<T, 3, 1> t_B_C_;
-  Eigen::Quaternion<T> q_B_C_;
+  Eigen::Quaternion<T> q_B_M_;
 
   Eigen::Matrix<T, 3, 1> focus_p_;
-  Eigen::Quaternion<T> focus_q_; 
-
-  Eigen::Matrix<T, 3, 1> gate_p_;
-  Eigen::Quaternion<T> gate_q_; 
 
   std::vector<PolynomialParams<T>> polynomial_trajectory_;
 
@@ -395,18 +387,17 @@ class MpcParams {
 
   T Q_pos_xy_;
   T Q_pos_z_;
-  T Q_att_;
+  T Q_yaw_;
   T Q_vel_;
-  T Q_thr_;
   T Q_img_u_;
   T Q_img_v_;
-  T Q_err_; 
+  T Q_err_;
   T Q_drate_;
+  T Q_gimbal_;
 
-  T R_thrust_;
-  T R_roll_;
-  T R_pitch_;
-  T R_yaw_;
+  T R_vel_;
+  T R_yaw_rate_;
+  T R_gimbal_rate_;
   T R_sv1_;
   T R_sv2_;
 

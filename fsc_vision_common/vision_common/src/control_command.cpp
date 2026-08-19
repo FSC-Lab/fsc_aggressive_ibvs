@@ -13,6 +13,9 @@ ControlCommand::ControlCommand()
       angular_accelerations(Eigen::Vector3d::Zero()),
       collective_thrust(0.0),
       thrust_rate(0.0),
+      velocity(Eigen::Vector3d::Zero()),
+      yaw_rate(0.0),
+      gimbal_angle(0.0),
       rotor_thrusts() {}
 
 ControlCommand::ControlCommand(
@@ -34,6 +37,9 @@ ControlCommand::ControlCommand(
     case vision_msgs::ControlCommand::ROTOR_THRUSTS:
       control_mode = ControlMode::ROTOR_THRUSTS;
       break;
+    case vision_msgs::ControlCommand::VELOCITY:
+      control_mode = ControlMode::VELOCITY;
+      break;
     default:
       break;
   }
@@ -45,6 +51,9 @@ ControlCommand::ControlCommand(
       geometryToEigen(control_command_msg.angular_accelerations);
   collective_thrust = control_command_msg.collective_thrust;
   thrust_rate = control_command_msg.thrust_rate;
+  velocity = geometryToEigen(control_command_msg.velocity);
+  yaw_rate = control_command_msg.yaw_rate;
+  gimbal_angle = control_command_msg.gimbal_angle;
   rotor_thrusts.resize(control_command_msg.rotor_thrusts.size());
   for (int i = 0; i < control_command_msg.rotor_thrusts.size(); i++) {
     rotor_thrusts(i) = control_command_msg.rotor_thrusts[i];
@@ -63,6 +72,9 @@ void ControlCommand::zero() {
   angular_accelerations = Eigen::Vector3d::Zero();
   collective_thrust = 0.0;
   thrust_rate = 0.0;
+  velocity = Eigen::Vector3d::Zero();
+  yaw_rate = 0.0;
+  gimbal_angle = 0.0;
   rotor_thrusts = Eigen::VectorXd::Zero(rotor_thrusts.size());
 }
 
@@ -87,6 +99,9 @@ vision_msgs::ControlCommand ControlCommand::toRosMessage() const {
     case ControlMode::ROTOR_THRUSTS:
       ros_msg.control_mode = ros_msg.ROTOR_THRUSTS;
       break;
+    case ControlMode::VELOCITY:
+      ros_msg.control_mode = ros_msg.VELOCITY;
+      break;
   }
   ros_msg.armed = armed;
   ros_msg.expected_execution_time = expected_execution_time;
@@ -95,6 +110,9 @@ vision_msgs::ControlCommand ControlCommand::toRosMessage() const {
   ros_msg.angular_accelerations = eigenToGeometry(angular_accelerations);
   ros_msg.collective_thrust = collective_thrust;
   ros_msg.thrust_rate = thrust_rate;
+  ros_msg.velocity = eigenToGeometry(velocity);
+  ros_msg.yaw_rate = yaw_rate;
+  ros_msg.gimbal_angle = gimbal_angle;
   for (int i = 0; i < rotor_thrusts.size(); i++) {
     ros_msg.rotor_thrusts.push_back(rotor_thrusts(i));
   }

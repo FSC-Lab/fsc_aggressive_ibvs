@@ -15,13 +15,13 @@ MpcController<T>::MpcController(const ros::NodeHandle& nh,
       timing_feedback_(T(1e-3)),
       timing_preparation_(T(1e-3)),  //TODO: MPC 
       est_state_((Eigen::Matrix<T, kStateSize, 1>()
-                    << 0, 0, 0,
-                       1, 0, 0, 0,
-                       0, 0, 0,
-                       9.81,
-                       1.0, 0.0, 0.0, 0.0, // bearing vector
-                       10.0,
-                       0.0, 0.0).finished()),
+                    << 0, 0, 0,          // position
+                       0,                // psi (heading)
+                       0, 0, 0,          // velocity
+                       1.0, 0.0, 0.0, 0.0, // bearing quaternion
+                       10.0,             // range
+                       0.0,              // gimbal angle
+                       0.0, 0.0).finished()), // slack integrators
       reference_states_(Eigen::Matrix<T, kCostSize, kSamples + 1>::Zero()),
       reference_inputs_(Eigen::Matrix<T, kInputSize, kSamples + 1>::Zero()),
       predicted_states_(Eigen::Matrix<T, kStateSize, kSamples + 1>::Zero()),
@@ -112,6 +112,10 @@ bool MpcController<T>::run(
   mpc_wrapper_.getStates(predicted_states_);
   mpc_wrapper_.getInputs(predicted_inputs_);
 
+  // Warm-start the gimbal-angle feedback from the model's own prediction
+  // (used next tick when no encoder feedback is pushed via setGimbalAngle).
+  gimbal_angle_ = predicted_states_((int)StateIndex::GIMBAL, 1);
+
   // Start a thread to prepare for the next execution.
   preparation_thread_ =
       std::thread(&MpcController<T>::preparationThread, this);
@@ -201,6 +205,10 @@ bool MpcController<T>::run(
   mpc_wrapper_.getStates(predicted_states_);
   mpc_wrapper_.getInputs(predicted_inputs_);
 
+  // Warm-start the gimbal-angle feedback from the model's own prediction
+  // (used next tick when no encoder feedback is pushed via setGimbalAngle).
+  gimbal_angle_ = predicted_states_((int)StateIndex::GIMBAL, 1);
+
   // Start a thread to prepare for the next execution.
   preparation_thread_ =
       std::thread(&MpcController<T>::preparationThread, this);
@@ -249,7 +257,6 @@ bool MpcController<T>::run(
   return true;
 }
 
-//TODO: MPC 
 template <typename T>
 bool MpcController<T>::setState(
     const vision_common::StateEstimate& state_est) {
@@ -258,37 +265,30 @@ bool MpcController<T>::setState(
   est_state_((int)StateIndex::POS_X) = state_est.position.x();
   est_state_((int)StateIndex::POS_Y) = state_est.position.y();
   est_state_((int)StateIndex::POS_Z) = state_est.position.z();
-  est_state_((int)StateIndex::ROT_W) = state_est.orientation.w();
-  est_state_((int)StateIndex::ROT_X) = state_est.orientation.x();
-  est_state_((int)StateIndex::ROT_Y) = state_est.orientation.y();
-  est_state_((int)StateIndex::ROT_Z) = state_est.orientation.z();
+  // Body heading (yaw) extracted from the odometry attitude quaternion.
+  est_state_((int)StateIndex::PSI) =
+      vision_common::quaternionToEulerAnglesZYX(state_est.orientation).z();
   est_state_((int)StateIndex::VEL_X) = state_est.velocity.x();
   est_state_((int)StateIndex::VEL_Y) = state_est.velocity.y();
   est_state_((int)StateIndex::VEL_Z) = state_est.velocity.z();
-  est_state_((int)StateIndex::THRUST) = state_est.collective_thrust;
-  // actual feature
-  est_state_((int)StateIndex::FOC_W) = gates.gates[0].center.normal_vector.orientation.w();
-  est_state_((int)StateIndex::FOC_X) = gates.gates[0].center.normal_vector.orientation.x();
-  est_state_((int)StateIndex::FOC_Y) = gates.gates[0].center.normal_vector.orientation.y();
-  est_state_((int)StateIndex::FOC_Z) = gates.gates[0].center.normal_vector.orientation.z();
+  // Bearing (line-of-sight) quaternion + range measured from the camera.
+  est_state_((int)StateIndex::BEA_W) = gates.gates[0].center.normal_vector.orientation.w();
+  est_state_((int)StateIndex::BEA_X) = gates.gates[0].center.normal_vector.orientation.x();
+  est_state_((int)StateIndex::BEA_Y) = gates.gates[0].center.normal_vector.orientation.y();
+  est_state_((int)StateIndex::BEA_Z) = gates.gates[0].center.normal_vector.orientation.z();
   est_state_((int)StateIndex::DISTANCE) = gates.gates[0].center.distance;
-  // virtual feature
-  // est_state_((int)StateIndex::FOC_W) = gates.gates[1].center.normal_vector.orientation.w();
-  // est_state_((int)StateIndex::FOC_X) = gates.gates[1].center.normal_vector.orientation.x();
-  // est_state_((int)StateIndex::FOC_Y) = gates.gates[1].center.normal_vector.orientation.y();
-  // est_state_((int)StateIndex::FOC_Z) = gates.gates[1].center.normal_vector.orientation.z();
-  // est_state_((int)StateIndex::DISTANCE) = gates.gates[1].center.distance;
+  // Gimbal pitch feedback (encoder if available, else last prediction).
+  est_state_((int)StateIndex::GIMBAL) = gimbal_angle_;
 
   est_state_((int)StateIndex::SLA_1) = 0.0;
   est_state_((int)StateIndex::SLA_2) = 0.0;
-  
-  const bool quaternion_norm_ok =
-      abs(est_state_.segment((int)StateIndex::ROT_W, 4).norm() - 1.0) < 0.1;
 
-  return quaternion_norm_ok;
+  const bool bearing_norm_ok =
+      abs(est_state_.segment((int)StateIndex::BEA_W, 4).norm() - 1.0) < 0.1;
+
+  return bearing_norm_ok;
 }
 
-//TODO: MPC 
 template <typename T>
 bool MpcController<T>::setReference(
     const vision_common::Trajectory& reference_trajectory) {
@@ -296,98 +296,52 @@ bool MpcController<T>::setReference(
   reference_inputs_.setZero();
 
   const T dt = mpc_wrapper_.getTimestep();
-  Eigen::Matrix<T, 3, 1> acceleration;
-  const Eigen::Matrix<T, 3, 1> gravity(0.0, 0.0, -9.81);
-  Eigen::Quaternion<T> q_orientation;
-  T reference_thrust;
 
-  bool quaternion_norm_ok(true);
+  // Cost-state reference layout (14):
+  //   p(3), psi, v(3), img_u, img_v, err(3), rdot1, theta_g
+  // img_uv and err targets are zero (center the target, zero visual error);
+  // the gimbal is regularized toward level (0).
+  auto make_ref = [](const vision_common::TrajectoryPoint& pt) {
+    const T yaw = (T)vision_common::quaternionToEulerAnglesZYX(pt.orientation).z();
+    return (Eigen::Matrix<T, kCostSize, 1>() <<
+              pt.position.template cast<T>(),
+              yaw,
+              pt.velocity.template cast<T>(),
+              (T)0.0, (T)0.0,                // img_uv
+              (T)0.0, (T)0.0, (T)0.0,        // visual err
+              (T)pt.distance_rate,           // desired closing rate
+              (T)0.0).finished();            // gimbal angle ref
+  };
 
   if (reference_trajectory.points.size() == 1) {
-    // Take the first point as the reference point
-    vision_common::TrajectoryPoint reference_state(reference_trajectory.points.front());
+    const vision_common::TrajectoryPoint reference_state(
+        reference_trajectory.points.front());
 
-    // R_wb = Rz*Ry*Rx
-    q_orientation = reference_state.orientation.template cast<T>();
-    // acceleration << reference_state.acceleration.template cast<T>() - gravity;
-    // reference_thrust = acceleration.norm();
+    reference_states_ = make_ref(reference_state).replicate(1, kSamples + 1);
 
-    reference_states_ =
-        (Eigen::Matrix<T, kCostSize, 1>() <<
-          reference_state.position.template cast<T>(),
-          // 0.0, 0.0, 0.0,
-          q_orientation.w(),
-          q_orientation.x(),
-          q_orientation.y(),
-          q_orientation.z(),
-          reference_state.velocity.template cast<T>(),
-          est_state_((int)StateIndex::THRUST),
-          0.0, 0.0,
-          reference_state.position.template cast<T>(),
-          // 0.0, 0.0, 0.0,
-          reference_state.distance_rate).finished().replicate(1, kSamples + 1);
-
-
-    // std::cout << "-----------setReference-----------" << std::endl;
-    // std::cout.precision(3);
-    // std::cout << "Thrust Ref.: " << reference_thrust << std::endl;
-
-    for (int i = 0; i < kSamples + 1; i++) {
-      if (reference_states_.col(i).segment((int)ReferenceIndex::ROT_W, 4).dot(est_state_.segment((int)StateIndex::ROT_W, 4)) < 0.0) {
-        reference_states_.block((int)ReferenceIndex::ROT_W, i, 4, 1) = -reference_states_.block((int)ReferenceIndex::ROT_W, i, 4, 1);
-      }
-    }
-
-    quaternion_norm_ok = abs(q_orientation.norm() - 1.0) < 0.1;
-
-    double ref_sv = 0.0;
+    // Feedforward commanded velocity; zero yaw-rate / gimbal-rate / slacks.
     reference_inputs_ = (Eigen::Matrix<T, kInputSize, 1>()
-                            << 0.0, reference_state.bodyrates.template cast<T>(), ref_sv, ref_sv).finished().replicate(1, kSamples + 1);
+        << reference_state.velocity.template cast<T>(),
+           (T)0.0, (T)0.0, (T)0.0, (T)0.0).finished().replicate(1, kSamples + 1);
   } else {
     auto iterator(reference_trajectory.points.begin());
     ros::Duration t_start = reference_trajectory.points.begin()->time_from_start;
-    auto last_element = reference_trajectory.points.end();
-    last_element = std::prev(last_element);
-    auto max_ref_speed = 0.0;
+    auto last_element = std::prev(reference_trajectory.points.end());
     for (int i = 0; i < kSamples + 1; i++) {
-      while ((iterator->time_from_start - t_start).toSec() <= i * dt && iterator != last_element) {
+      while ((iterator->time_from_start - t_start).toSec() <= i * dt &&
+             iterator != last_element) {
         iterator++;
       }
 
-      q_orientation = iterator->orientation.template cast<T>();
-
-      reference_states_.col(i) << iterator->position.template cast<T>(),
-                                  // 0.0, 0.0, 0.0,
-                                  q_orientation.w(),
-                                  q_orientation.x(),
-                                  q_orientation.y(),
-                                  q_orientation.z(),
-                                  iterator->velocity.template cast<T>(),
-                                  est_state_((int)StateIndex::THRUST),
-                                  0.0, 0.0,
-                                  iterator->position.template cast<T>(),
-                                  // 0.0, 0.0, 0.0,
-                                  iterator->distance_rate;
-
-      if (reference_states_.col(i).segment((int)ReferenceIndex::ROT_W, 4).dot(est_state_.segment((int)StateIndex::ROT_W, 4)) < 0.0) {
-        reference_states_.block((int)ReferenceIndex::ROT_W, i, 4, 1) = -reference_states_.block((int)ReferenceIndex::ROT_W, i, 4, 1);
-      }
-      if (max_ref_speed < iterator->velocity.norm()) {
-        max_ref_speed = iterator->velocity.norm();
-      }
-
-      double ref_sv = 0.0;
-      reference_inputs_.col(i) << 0.0, iterator->bodyrates.template cast<T>(), ref_sv, ref_sv;
-      quaternion_norm_ok &= abs(q_orientation.norm() - 1.0) < 0.1;
+      reference_states_.col(i) = make_ref(*iterator);
+      reference_inputs_.col(i) << iterator->velocity.template cast<T>(),
+                                  (T)0.0, (T)0.0, (T)0.0, (T)0.0;
     }
-
-    // std::cout << "max_ref_speed: " << max_ref_speed << std::endl;
   }
 
-  return quaternion_norm_ok;
+  return true;
 }
 
-//TODO: MPC 
 template <typename T>
 bool MpcController<T>::getControlCommand(
     const Eigen::Ref<const Eigen::Matrix<T, kStateSize, 1>> state,
@@ -395,71 +349,47 @@ bool MpcController<T>::getControlCommand(
     ros::Time& time,
     vision_common::ControlCommand& command) {
   Eigen::Matrix<T, kInputSize, 1> input_bounded = input.template cast<T>();
-  const T dt = mpc_wrapper_.getTimestep();
 
-  T rot_w = state((int)StateIndex::ROT_W);
-  T rot_x = state((int)StateIndex::ROT_X);
-  T rot_y = state((int)StateIndex::ROT_Y);
-  T rot_z = state((int)StateIndex::ROT_Z);
-  T thrust = state((int)StateIndex::THRUST);
-  T thrust_rate = input_bounded((int)ControlIndex::THRUST_DOT);
-  T bodyrate_x = input_bounded((int)ControlIndex::RAT_X);
-  T bodyrate_y = input_bounded((int)ControlIndex::RAT_Y);
-  T bodyrate_z = input_bounded((int)ControlIndex::RAT_Z);
+  // Commanded world velocity, yaw rate, and gimbal-rate integrated into a
+  // gimbal-angle setpoint.
+  T vel_x = input_bounded((int)ControlIndex::VEL_X);
+  T vel_y = input_bounded((int)ControlIndex::VEL_Y);
+  T vel_z = input_bounded((int)ControlIndex::VEL_Z);
+  T yaw_rate = input_bounded((int)ControlIndex::YAW_RATE);
+  T gimbal_rate = input_bounded((int)ControlIndex::GIMBAL_RATE);
+  T gimbal_angle = state((int)StateIndex::GIMBAL);
 
-  // std::cout << "-----------RawCommand-----------" << std::endl;
-  // std::cout.precision(3);
-  // std::cout << "Thrust: " << thrust << std::endl;
-  // std::cout << "Thrust Rate: " << thrust_rate << std::endl;
-
-  if (std::isnan(rot_w) ||
-      std::isnan(rot_x) ||
-      std::isnan(rot_y) ||
-      std::isnan(rot_z) ||
-      std::isnan(thrust) ||
-      std::isnan(thrust_rate) ||
-      std::isnan(bodyrate_x) ||
-      std::isnan(bodyrate_y) ||
-      std::isnan(bodyrate_z)) {
+  if (std::isnan(vel_x) || std::isnan(vel_y) || std::isnan(vel_z) ||
+      std::isnan(yaw_rate) || std::isnan(gimbal_rate) ||
+      std::isnan(gimbal_angle)) {
     return false;
   }
 
   // Bound inputs for sanity.
-  thrust_rate = std::max(-params_.max_thrust_rate_, std::min(params_.max_thrust_rate_, thrust_rate));
-  bodyrate_x = std::max(-params_.max_bodyrate_x_, std::min(params_.max_bodyrate_x_, bodyrate_x));
-  bodyrate_y = std::max(-params_.max_bodyrate_y_, std::min(params_.max_bodyrate_y_, bodyrate_y));
-  bodyrate_z = std::max(-params_.max_bodyrate_z_, std::min(params_.max_bodyrate_z_, bodyrate_z));
-
-  // thrust_rate = std::max(T(-1), std::min(T(1), thrust_rate));
-  thrust = std::max(params_.min_thrust_, std::min(params_.max_thrust_, thrust + dt * thrust_rate));
-  // thrust = std::max(params_.min_thrust_, std::min(params_.max_thrust_, thrust));
+  vel_x = std::max(-params_.max_velocity_, std::min(params_.max_velocity_, vel_x));
+  vel_y = std::max(-params_.max_velocity_, std::min(params_.max_velocity_, vel_y));
+  vel_z = std::max(-params_.max_velocity_, std::min(params_.max_velocity_, vel_z));
+  yaw_rate = std::max(-params_.max_yaw_rate_, std::min(params_.max_yaw_rate_, yaw_rate));
+  gimbal_angle = std::max(params_.gimbal_angle_min_,
+                          std::min(params_.gimbal_angle_max_, gimbal_angle));
 
   command = vision_common::ControlCommand();
   command.timestamp = time;
   command.armed = true;
-  command.control_mode = vision_common::ControlMode::BODY_RATES;
+  command.control_mode = vision_common::ControlMode::VELOCITY;
   command.expected_execution_time = time;
-  command.collective_thrust = thrust;
-  command.thrust_rate = thrust_rate;
-  command.bodyrates.x() = bodyrate_x;
-  command.bodyrates.y() = bodyrate_y;
-  command.bodyrates.z() = bodyrate_z;
-  command.orientation.w() = rot_w;
-  command.orientation.x() = rot_x;
-  command.orientation.y() = rot_y;
-  command.orientation.z() = rot_z;
+  command.velocity.x() = vel_x;
+  command.velocity.y() = vel_y;
+  command.velocity.z() = vel_z;
+  command.yaw_rate = yaw_rate;
+  command.gimbal_angle = gimbal_angle;
   command.slack_variables.resize(2);
   command.slack_variables[0] = input_bounded((int)ControlIndex::SLA_1);
   command.slack_variables[1] = input_bounded((int)ControlIndex::SLA_2);
 
-  // std::cout << "sv1: " << command.slack_variables[0] << std::endl;
-  // if (command.slack_variables[1] > 1e-2)
-  //   std::cout << "sv2: " << command.slack_variables[1] << std::endl;
-
   return true;
 }
 
-//TODO: MPC 
 template <typename T>
 bool MpcController<T>::getPredictedState(
     const Eigen::Ref<const Eigen::Matrix<T, kStateSize, 1>> state,
@@ -469,28 +399,19 @@ bool MpcController<T>::getPredictedState(
   T pos_x = state((int)StateIndex::POS_X);
   T pos_y = state((int)StateIndex::POS_Y);
   T pos_z = state((int)StateIndex::POS_Z);
-  T rot_w = state((int)StateIndex::ROT_W);
-  T rot_x = state((int)StateIndex::ROT_X);
-  T rot_y = state((int)StateIndex::ROT_Y);
-  T rot_z = state((int)StateIndex::ROT_Z);
+  T psi = state((int)StateIndex::PSI);
   T vel_x = state((int)StateIndex::VEL_X);
   T vel_y = state((int)StateIndex::VEL_Y);
   T vel_z = state((int)StateIndex::VEL_Z);
-  T thrust = state((int)StateIndex::THRUST);
-
   T distance = state((int)StateIndex::DISTANCE);
 
   if (std::isnan(pos_x) ||
       std::isnan(pos_y) ||
       std::isnan(pos_z) ||
-      std::isnan(rot_w) ||
-      std::isnan(rot_x) ||
-      std::isnan(rot_y) ||
-      std::isnan(rot_z) ||
+      std::isnan(psi) ||
       std::isnan(vel_x) ||
       std::isnan(vel_y) ||
       std::isnan(vel_z) ||
-      std::isnan(thrust) ||
       std::isnan(distance)) {
     return false;
   }
@@ -500,20 +421,19 @@ bool MpcController<T>::getPredictedState(
   predicted_state.position.x() = pos_x;
   predicted_state.position.y() = pos_y;
   predicted_state.position.z() = pos_z;
-  predicted_state.orientation.w() = rot_w;
-  predicted_state.orientation.x() = rot_x;
-  predicted_state.orientation.y() = rot_y;
-  predicted_state.orientation.z() = rot_z;
+  // Level body: orientation is a pure yaw about world z.
+  predicted_state.orientation =
+      Eigen::Quaternion<double>(Eigen::AngleAxis<double>(
+          (double)psi, Eigen::Vector3d::UnitZ()));
   predicted_state.velocity.x() = vel_x;
   predicted_state.velocity.y() = vel_y;
   predicted_state.velocity.z() = vel_z;
-  predicted_state.collective_thrust = thrust;
 
   predicted_state.gates.gates.resize(1);
-  predicted_state.gates.gates[0].center.normal_vector.orientation.w() = state((int)StateIndex::FOC_W);
-  predicted_state.gates.gates[0].center.normal_vector.orientation.x() = state((int)StateIndex::FOC_X);
-  predicted_state.gates.gates[0].center.normal_vector.orientation.y() = state((int)StateIndex::FOC_Y);
-  predicted_state.gates.gates[0].center.normal_vector.orientation.z() = state((int)StateIndex::FOC_Z);
+  predicted_state.gates.gates[0].center.normal_vector.orientation.w() = state((int)StateIndex::BEA_W);
+  predicted_state.gates.gates[0].center.normal_vector.orientation.x() = state((int)StateIndex::BEA_X);
+  predicted_state.gates.gates[0].center.normal_vector.orientation.y() = state((int)StateIndex::BEA_Y);
+  predicted_state.gates.gates[0].center.normal_vector.orientation.z() = state((int)StateIndex::BEA_Z);
   predicted_state.gates.gates[0].center.distance = distance;
 
   return true;
@@ -532,30 +452,22 @@ void MpcController<T>::preparationThread() {
       0.9 * timing_preparation_ + 0.1 * double(end - start) / CLOCKS_PER_SEC;
 }
 
-//TODO: MPC 
 template <typename T>
 bool MpcController<T>::setNewParams(MpcParams<T>& params) {
 
-  // mpc_wrapper_.setCosts(params.Q_, params.R_, params.state_cost_exponential_, params.input_cost_exponential_);
-  
   mpc_wrapper_.setSv2ScaledCosts(params.Q_, params.R_, params.sv2_scalings_);
 
-  mpc_wrapper_.setLimits(params.max_thrust_rate_,
-                         params.max_bodyrate_x_,
-                         params.max_bodyrate_y_,
-                         params.max_bodyrate_z_,
-                         params.min_thrust_,
-                         params.max_thrust_);
-  mpc_wrapper_.setCameraParameters(params.t_B_C_, params.q_B_C_);
-  mpc_wrapper_.setFocusParameters(params.focus_p_, params.focus_q_);
-  mpc_wrapper_.setGateParameters(params.gate_p_, params.gate_q_);
+  mpc_wrapper_.setLimits(params.max_velocity_,
+                         params.max_yaw_rate_,
+                         params.max_gimbal_rate_);
+  mpc_wrapper_.setCameraParameters(params.t_B_C_, params.q_B_M_);
+  mpc_wrapper_.setFocusParameters(params.focus_p_);
   for (int i = 0; i < kSamples+1; ++i) {
     mpc_wrapper_.setTrajectoryParameters(i, params.polynomial_trajectory_[i].poly_x,
                                             params.polynomial_trajectory_[i].poly_y,
                                             params.polynomial_trajectory_[i].poly_z,
                                             params.polynomial_trajectory_[i].distance_start);
-  }   
-  mpc_wrapper_.setSizeParameters(params.gate_width_, params.gate_height_, params.quad_radius_);
+  }
 
   params.changed_ = false;
 
