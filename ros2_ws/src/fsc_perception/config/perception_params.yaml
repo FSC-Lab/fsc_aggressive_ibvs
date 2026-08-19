@@ -1,0 +1,19 @@
+# Parameters for target_bearing_node (ground-truth line-of-sight).
+target_bearing_node:
+  ros__parameters:
+    publish_rate: 30.0
+
+    # Camera mount (body -> gimbal base). MUST match mpc_controller_node's
+    # t_B_C / q_B_M so the measured bearing matches the model's prediction.
+    # q_B_M is [w, x, y, z].
+    t_B_C: [0.0, 0.0, 0.15]
+    q_B_M: [0.5, -0.5, 0.5, -0.5]
+
+    # Normalized image half-extent used for the visibility (valid) flag. Matches
+    # img_u/v bounds in pose_track_mpc_gimbal.cpp (~half FOV).
+    fov_half_angle_norm: 0.588836
+
+    # Optional range gate for the valid flag (0 disables).
+    max_range: 0.0
+
+    world_frame: "odom"

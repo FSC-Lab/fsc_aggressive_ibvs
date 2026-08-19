@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>fsc_perception</name>
+  <version>0.1.0</version>
+  <description>
+    Ground-truth line-of-sight source for the IBVS NMPC. Computes the bearing
+    quaternion f1 and range r1 (matching pose_track_mpc_gimbal conventions) from
+    drone odometry, the target's ground-truth pose, and the gimbal tilt, and
+    publishes fsc_vision_msgs/TargetBearing. Also ships the gz gimbal + bbox
+    ground-truth assets and the ros_gz_bridge config.
+  </description>
+  <maintainer email="hakim@example.com">Hakim Amer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>fsc_vision_msgs</depend>
+  <depend>eigen</depend>
+
+  <!-- Runtime only: gz bridge for gimbal cmd/state + target pose. -->
+  <exec_depend>ros_gz_bridge</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

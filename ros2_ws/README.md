@@ -40,7 +40,7 @@ inside `px4_offboard_bridge`.
 | 2 | `fsc_vision_msgs` — ROS2 msgs (`ControlCommand`, `TargetBearing`) | **done** |
 | 3 | `mpc_controller_node` — rclcpp node wrapping `mpc_core` | **done** |
 | 4 | `px4_offboard_bridge` — VELOCITY→PX4 offboard, arm state machine, frames | **done** (needs `px4_msgs`, see below) |
-| 5 | `gz_gimbal` + `gz_bbox_truth` — gimbal joint bridge, ground-truth bbox/range | todo |
+| 5 | `fsc_perception` — ground-truth bearing/range node + gz gimbal/target assets | **done** (node built here; gz assets untested) |
 | 6 | `fsc_bringup` — launch + params for SITL + DDS agent + bridge + node | todo |
 
 Stages 1–3 have been compile- and run-verified end-to-end against a **stub**
@@ -88,6 +88,29 @@ Topic wiring (see `launch/px4_offboard_bridge.launch.py`): PX4 side on
 gimbal command on `/gimbal/angle_cmd`. Because `px4_msgs` is not installed on
 this machine, the bridge is authored to compile against it but has not been
 built/run here (unlike Stages 1–3, which were verified against the stub solver).
+
+## `fsc_perception` — ground-truth line of sight
+
+`target_bearing_node` (pure rclcpp, built and run-verified here) turns the
+target's ground-truth pose + drone odometry + gimbal tilt into the bearing
+quaternion `f1` and range `r1` the model expects, published as
+`fsc_vision_msgs/TargetBearing`. It also republishes the target world position
+as a `PointStamped` so the MPC node anchors its focus/reference.
+
+The bearing convention is matched exactly to `pose_track_mpc_gimbal.cpp` /
+`vision_common::NormalVector`:
+- gimbaled camera rotation `q_B_C = q_B_M ⊗ q_pitch(theta_g)`,
+  `q_pitch = (cos(θ/2), 0, sin(θ/2), 0)` (pitch about camera y);
+- `LOS_cam = q_B_C⁻¹ (q_W_B⁻¹(target − drone) − t_B_C)`, `range = ‖LOS_cam‖`;
+- `f1` = shortest-arc rotation of boresight `+Z` onto `LOS_cam`.
+
+Keep `t_B_C` / `q_B_M` identical to `mpc_controller_node`'s so the measurement
+matches the model's prediction.
+
+The gz side (Harmonic) lives in `src/fsc_perception/gz/`: a one-axis pitch
+gimbal + camera model, a ground-truth target model with a pose publisher, and a
+`ros_gz_bridge` config. These are assets/config (stock gz-sim system plugins),
+not compiled here — see `gz/README.md`.
 
 ## Build
 

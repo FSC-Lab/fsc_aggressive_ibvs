@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<!--
+  Ground-truth target model. A brightly-coloured box that the ground-truth
+  "bounding box" refers to; its world pose is published by a PosePublisher and
+  bridged to /target/pose_gt (see ros_gz_bridge.yaml), which target_bearing_node
+  turns into the bearing f1 + range r1.
+
+  Because detection is ground-truth, no learned detector or camera image is
+  needed for control: the pose alone yields an exact bbox/range. The camera
+  sensor in gimbal_camera.sdf is kept only for visualization / future real
+  detectors.
+
+  Move the target with a TrajectoryFollower / VelocityControl plugin, a script,
+  or by publishing to a pose/velocity command topic; the pose publisher will
+  always reflect its true state.
+-->
+<sdf version="1.9">
+  <model name="moving_target">
+    <pose>5 0 1 0 0 0</pose>
+    <link name="target_link">
+      <inertial>
+        <mass>1.0</mass>
+        <inertia><ixx>0.01</ixx><iyy>0.01</iyy><izz>0.01</izz>
+                 <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+      </inertial>
+      <visual name="target_visual">
+        <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+        <material>
+          <ambient>1 0.2 0.1 1</ambient>
+          <diffuse>1 0.2 0.1 1</diffuse>
+          <emissive>0.3 0 0 1</emissive>
+        </material>
+      </visual>
+      <collision name="target_collision">
+        <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+      </collision>
+    </link>
+
+    <!-- Ground-truth pose publisher (world frame). -->
+    <plugin filename="gz-sim-pose-publisher-system"
+            name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>false</publish_link_pose>
+      <publish_model_pose>true</publish_model_pose>
+      <use_pose_vector_msg>false</use_pose_vector_msg>
+      <update_frequency>50</update_frequency>
+    </plugin>
+  </model>
+</sdf>

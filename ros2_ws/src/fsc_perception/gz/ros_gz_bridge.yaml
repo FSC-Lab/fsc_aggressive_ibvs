@@ -1,0 +1,42 @@
+# ros_gz_bridge configuration for the gimbal + ground-truth target.
+#
+# Run with:
+#   ros2 run ros_gz_bridge parameter_bridge \
+#     --ros-args -p config_file:=<this file>
+#
+# Adjust the gz topic names to match your world/model names.
+
+# --- Gimbal: command (ROS -> gz) --------------------------------------------
+# px4_offboard_bridge publishes the desired tilt on /gimbal/angle_cmd; forward
+# it to the gz JointPositionController command topic (see gimbal_camera.sdf).
+- ros_topic_name: "/gimbal/angle_cmd"
+  gz_topic_name: "/model/x500_gimbal/joint/gimbal_tilt_joint/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+# --- Gimbal: state feedback (gz -> ROS) -------------------------------------
+# JointStatePublisher exposes joint positions; a small relay or the
+# JointPositionController's feedback is republished as the tilt angle. Here we
+# bridge the joint-state and let target_bearing_node/mpc read the single joint.
+- ros_topic_name: "/gimbal/angle_state"
+  gz_topic_name: "/model/x500_gimbal/joint/gimbal_tilt_joint/state"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: GZ_TO_ROS
+
+# --- Target ground-truth pose (gz -> ROS) -----------------------------------
+# The target model's world pose, published by a gz PosePublisher plugin on the
+# target model. Consumed by target_bearing_node as the ground-truth LOS anchor.
+- ros_topic_name: "/target/pose_gt"
+  gz_topic_name: "/model/moving_target/pose"
+  ros_type_name: "geometry_msgs/msg/PoseStamped"
+  gz_type_name: "gz.msgs.Pose"
+  direction: GZ_TO_ROS
+
+# --- Simulation clock (gz -> ROS) -------------------------------------------
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS

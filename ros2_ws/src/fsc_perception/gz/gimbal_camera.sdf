@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<!--
+  One-axis PITCH gimbal + camera, as a gz (Harmonic) model.
+
+  Intended to be <include>d into the PX4 x500 airframe model (or spawned and
+  attached to the vehicle base_link with a fixed joint). The tilt joint is
+  driven by a position command topic and its angle is published back, matching
+  the topics in ros_gz_bridge.yaml:
+
+    cmd   (ROS_TO_GZ): /model/x500_gimbal/joint/gimbal_tilt_joint/cmd_pos
+    state (GZ_TO_ROS): /model/x500_gimbal/joint/gimbal_tilt_joint/state
+
+  Convention note: theta_g in the model is a PITCH about the camera y-axis, with
+  travel [-90 deg, +30 deg] (see pose_track_mpc_gimbal.cpp). The camera optical
+  frame boresight is +Z, which is what target_bearing_node assumes for f1.
+-->
+<sdf version="1.9">
+  <model name="x500_gimbal">
+    <!-- Fixed mount base attached to the vehicle. -->
+    <link name="gimbal_base">
+      <pose>0 0 0.15 0 0 0</pose>   <!-- t_B_C: 0.15 m above body origin -->
+      <inertial>
+        <mass>0.02</mass>
+        <inertia><ixx>1e-5</ixx><iyy>1e-5</iyy><izz>1e-5</izz>
+                 <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+      </inertial>
+      <visual name="base_visual">
+        <geometry><box><size>0.03 0.03 0.02</size></box></geometry>
+      </visual>
+    </link>
+
+    <!-- Tilting link carrying the camera. -->
+    <link name="camera_link">
+      <pose>0 0 0.15 0 0 0</pose>
+      <inertial>
+        <mass>0.03</mass>
+        <inertia><ixx>1e-5</ixx><iyy>1e-5</iyy><izz>1e-5</izz>
+                 <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+      </inertial>
+      <visual name="cam_visual">
+        <geometry><box><size>0.03 0.05 0.03</size></box></geometry>
+      </visual>
+      <sensor name="camera" type="camera">
+        <pose>0 0 0 0 0 0</pose>
+        <camera>
+          <!-- ~2 * atan(0.588836) horizontal FOV to match the model image bounds. -->
+          <horizontal_fov>1.0996</horizontal_fov>
+          <image><width>640</width><height>640</height></image>
+          <clip><near>0.05</near><far>300</far></clip>
+        </camera>
+        <update_rate>30</update_rate>
+        <always_on>1</always_on>
+        <topic>/x500_gimbal/camera</topic>
+      </sensor>
+    </link>
+
+    <!-- Pitch (tilt) joint: rotates camera_link about its y-axis. -->
+    <joint name="gimbal_tilt_joint" type="revolute">
+      <parent>gimbal_base</parent>
+      <child>camera_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.5708</lower>   <!-- -90 deg -->
+          <upper>0.5236</upper>    <!-- +30 deg -->
+          <effort>10</effort>
+          <velocity>3.0</velocity> <!-- omega_g_max -->
+        </limit>
+        <dynamics><damping>0.05</damping></dynamics>
+      </axis>
+    </joint>
+
+    <!-- Position controller: subscribes cmd_pos, drives the tilt joint. -->
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>gimbal_tilt_joint</joint_name>
+      <topic>/model/x500_gimbal/joint/gimbal_tilt_joint/cmd_pos</topic>
+      <p_gain>4.0</p_gain>
+      <i_gain>0.2</i_gain>
+      <d_gain>0.1</d_gain>
+      <cmd_max>10</cmd_max>
+      <cmd_min>-10</cmd_min>
+    </plugin>
+
+    <!-- Publishes joint state (position) for feedback. -->
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <joint_name>gimbal_tilt_joint</joint_name>
+    </plugin>
+  </model>
+</sdf>
