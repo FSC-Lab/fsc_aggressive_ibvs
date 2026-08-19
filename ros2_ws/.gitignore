@@ -1,0 +1,8 @@
+# colcon artifacts
+build/
+install/
+log/
+
+# ACADO-generated solver (machine-generated, regenerate locally — see
+# src/mpc_core/model/README.md)
+src/mpc_core/model/pose_track_mpc_gimbal/
