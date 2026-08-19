@@ -11,6 +11,14 @@ namespace mpc {
 #include "acado_auxiliary_functions.h"
 #include "acado_common.h"
 
+// NOTE: acado_common.h already declares (extern "C")
+//   extern ACADOvariables acadoVariables;
+//   extern ACADOworkspace acadoWorkspace;
+// The single definition of these globals lives in mpc_wrapper.cpp. (The ROS1
+// code defined them here in the header and relied on the compiler's legacy
+// -fcommon tentative-definition merging; modern toolchains default to
+// -fno-common, so we give them exactly one definition instead.)
+
 static constexpr int kSamples = ACADO_N;      // number of samples
 static constexpr int kStateSize = ACADO_NX;   // number of states
 static constexpr int kRefSize = ACADO_NY;     // number of reference states
@@ -18,9 +26,6 @@ static constexpr int kEndRefSize = ACADO_NYN; // number of end reference states
 static constexpr int kInputSize = ACADO_NU;   // number of inputs
 static constexpr int kCostSize = ACADO_NY - ACADO_NU; // number of costs
 static constexpr int kOdSize = ACADO_NOD;     // number of online data
-
-ACADOvariables acadoVariables;
-ACADOworkspace acadoWorkspace;
 
 // State layout (15) for the velocity-body + pitch-gimbal model, matching
 // utils/pose_track_mpc_gimbal.cpp:

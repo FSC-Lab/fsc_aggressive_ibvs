@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>mpc_controller_node</name>
+  <version>0.1.0</version>
+  <description>
+    rclcpp node wrapping the ROS-free mpc_core library (velocity-body +
+    pitch-gimbal IBVS NMPC). Consumes odometry + target bearing/range, publishes
+    a ControlCommand for the PX4 offboard bridge.
+  </description>
+  <maintainer email="hakim@example.com">Hakim Amer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>fsc_vision_msgs</depend>
+  <depend>mpc_core</depend>
+  <depend>eigen</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

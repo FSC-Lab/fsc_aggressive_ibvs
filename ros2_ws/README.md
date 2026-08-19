@@ -37,11 +37,15 @@ inside `px4_offboard_bridge`.
 | Stage | Package | Status |
 |-------|---------|--------|
 | 1 | `mpc_core` — ROS-free MPC library (wrapper + controller + params) | **done** (needs ACADO model, see below) |
-| 2 | `fsc_vision_msgs` — ROS2 msgs (`ControlCommand`, bbox, etc.) | todo |
-| 3 | `mpc_controller_node` — rclcpp node wrapping `mpc_core` | todo |
+| 2 | `fsc_vision_msgs` — ROS2 msgs (`ControlCommand`, `TargetBearing`) | **done** |
+| 3 | `mpc_controller_node` — rclcpp node wrapping `mpc_core` | **done** |
 | 4 | `px4_offboard_bridge` — VELOCITY→PX4 offboard, arm state machine, frames | todo |
 | 5 | `gz_gimbal` + `gz_bbox_truth` — gimbal joint bridge, ground-truth bbox/range | todo |
 | 6 | `fsc_bringup` — launch + params for SITL + DDS agent + bridge + node | todo |
+
+Stages 1–3 have been compile- and run-verified end-to-end against a **stub**
+ACADO solver (correct dimensions, no-op numerics) since ACADO cannot be run in
+this environment; swap in the real generated model to get real control output.
 
 ## `mpc_core` and the ACADO model
 
@@ -64,5 +68,24 @@ The ROS→ROS-free changes vs. the ROS1 sources:
 
 ```bash
 cd ros2_ws
-colcon build --packages-select mpc_core   # after dropping in the ACADO model
+source /opt/ros/jazzy/setup.bash
+colcon build
+```
+
+Two environment notes on this machine:
+
+- **Python:** a conda Python is first on `PATH` and lacks `catkin_pkg`, which
+  breaks the ament/rosidl generators. Force the system interpreter:
+  `--cmake-args -DPython3_EXECUTABLE=/usr/bin/python3` (or `conda deactivate`
+  before building).
+- **ACADO model:** `mpc_core` needs the generated solver in
+  `src/mpc_core/model/pose_track_mpc_gimbal/` (see `src/mpc_core/model/README.md`).
+  Until then, point the build at a directory with the ACADO export via
+  `--cmake-args -DMPC_MODEL_DIR=<path>`.
+
+Example (system Python + explicit model dir):
+
+```bash
+colcon build --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3 \
+                          -DMPC_MODEL_DIR=/abs/path/to/pose_track_mpc_gimbal
 ```

@@ -57,6 +57,9 @@ target_include_directories(mpc_solver PUBLIC
   $<BUILD_INTERFACE:${QPOASES_DIR}>
   $<BUILD_INTERFACE:${QPOASES_DIR}/INCLUDE>
   $<BUILD_INTERFACE:${QPOASES_DIR}/SRC>
+  # The ACADO headers are part of mpc_wrapper.h's public interface, so downstream
+  # packages (the node) must see them too. They are installed below.
+  $<INSTALL_INTERFACE:include/mpc_core_acado>
 )
 target_link_libraries(mpc_solver Eigen3::Eigen)
 
@@ -71,12 +74,16 @@ target_include_directories(mpc_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(mpc_core mpc_solver Eigen3::Eigen)
+target_link_libraries(mpc_core PUBLIC mpc_solver Eigen3::Eigen)
 
 # ---------------------------------------------------------------------------
 # Install / export so downstream ROS2 packages (node, bridge) can link.
 # ---------------------------------------------------------------------------
 install(DIRECTORY include/ DESTINATION include)
+
+# Install the ACADO-generated headers so downstream can compile mpc_wrapper.h.
+install(DIRECTORY ${MPC_MODEL_DIR}/ DESTINATION include/mpc_core_acado
+  FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 install(TARGETS mpc_core mpc_solver
   EXPORT export_mpc_core
   ARCHIVE DESTINATION lib

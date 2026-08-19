@@ -2,6 +2,12 @@
 
 namespace mpc {
 
+// Single definition of the ACADO solver globals (declared extern "C" in
+// acado_common.h). Kept here so every TU that includes mpc_wrapper.h shares one
+// instance under modern -fno-common toolchains.
+ACADOvariables acadoVariables;
+ACADOworkspace acadoWorkspace;
+
 template <typename T>
 MpcWrapper<T>::MpcWrapper() {
   // Clear solver memory.

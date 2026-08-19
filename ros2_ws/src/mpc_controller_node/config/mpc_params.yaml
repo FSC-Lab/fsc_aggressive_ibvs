@@ -1,0 +1,46 @@
+# Parameters for mpc_controller_node (velocity-body + 1-axis pitch-gimbal IBVS
+# NMPC). Ported from fsc_autopilot/parameters/rotors_control_params.yaml.
+mpc_controller_node:
+  ros__parameters:
+    control_rate: 20.0
+
+    # State costs.
+    Q_pos_xy: 200.0
+    Q_pos_z:  200.0
+    Q_yaw:    50.0     # body heading (camera pan)
+    Q_vel:    10.0
+    Q_img_u:  0.0
+    Q_img_v:  0.0
+    Q_err:    0.0
+    Q_drate:  0.0
+    Q_gimbal: 1.0      # regularize gimbal pitch (camera tilt)
+
+    # Input costs.
+    R_vel:         1.0
+    R_yaw_rate:    20.0
+    R_gimbal_rate: 10.0
+    R_sv1:         0.001
+    R_sv2:         0.001
+
+    state_cost_exponential: 0.0
+    input_cost_exponential: 0.0
+
+    # Limits.
+    max_velocity:     8.0       # [m/s] per axis
+    max_yaw_rate:     1.5       # [rad/s] camera pan
+    max_gimbal_rate:  3.0       # [rad/s] camera tilt
+    gimbal_angle_min: -1.5708   # [rad] (-90 deg)
+    gimbal_angle_max: 0.5236    # [rad] (+30 deg)
+
+    # Camera mount (body -> gimbal base). q_B_M is [w, x, y, z].
+    t_B_C: [0.0, 0.0, 0.15]
+    q_B_M: [0.5, -0.5, 0.5, -0.5]
+
+    # Target + reference (world/ENU). target_position updated live on
+    # /target_point; reference_position is the desired standoff pose.
+    target_position:    [5.0, 0.0, 1.0]
+    reference_position: [0.0, 0.0, 3.0]
+    reference_heading:  0.0
+
+    print_info:  false
+    world_frame: "odom"
