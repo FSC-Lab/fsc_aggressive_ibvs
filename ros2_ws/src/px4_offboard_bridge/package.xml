@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>px4_offboard_bridge</name>
+  <version>0.1.0</version>
+  <description>
+    Bridges the PX4-agnostic mpc_controller_node to a PX4 autopilot over
+    uXRCE-DDS: converts world/ENU velocity ControlCommands to PX4 NED offboard
+    setpoints, runs the offboard-engage + arm state machine, republishes PX4
+    odometry as ROS Odometry, and forwards the gimbal angle. All ENU/FLU<->NED/FRD
+    frame conversion is isolated in this package.
+  </description>
+  <maintainer email="hakim@example.com">Hakim Amer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>fsc_vision_msgs</depend>
+  <depend>px4_msgs</depend>
+  <depend>eigen</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

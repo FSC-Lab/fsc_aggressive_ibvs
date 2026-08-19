@@ -1,0 +1,19 @@
+# Parameters for px4_offboard_bridge.
+px4_offboard_bridge:
+  ros__parameters:
+    # Offboard heartbeat rate. PX4 requires OffboardControlMode + a setpoint at
+    # >2 Hz; 50 Hz is a comfortable margin.
+    heartbeat_rate: 50.0
+
+    # If no fresh ControlCommand arrives within this window the bridge streams a
+    # zero-velocity setpoint (stays in offboard, holds still) instead of the
+    # last stale command.
+    command_timeout: 0.5
+
+    # Auto-engage offboard + arm once setpoints are streaming and the controller
+    # requests armed. Set false to arm manually (QGC / RC) while the bridge only
+    # streams setpoints.
+    enable_auto_arm: true
+
+    world_frame: "odom"
+    body_frame: "base_link"

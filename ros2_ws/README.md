@@ -39,7 +39,7 @@ inside `px4_offboard_bridge`.
 | 1 | `mpc_core` — ROS-free MPC library (wrapper + controller + params) | **done** (needs ACADO model, see below) |
 | 2 | `fsc_vision_msgs` — ROS2 msgs (`ControlCommand`, `TargetBearing`) | **done** |
 | 3 | `mpc_controller_node` — rclcpp node wrapping `mpc_core` | **done** |
-| 4 | `px4_offboard_bridge` — VELOCITY→PX4 offboard, arm state machine, frames | todo |
+| 4 | `px4_offboard_bridge` — VELOCITY→PX4 offboard, arm state machine, frames | **done** (needs `px4_msgs`, see below) |
 | 5 | `gz_gimbal` + `gz_bbox_truth` — gimbal joint bridge, ground-truth bbox/range | todo |
 | 6 | `fsc_bringup` — launch + params for SITL + DDS agent + bridge + node | todo |
 
@@ -63,6 +63,31 @@ The ROS→ROS-free changes vs. the ROS1 sources:
 - `vision_common::{StateEstimate,Trajectory,TrajectoryPoint,ControlCommand,
   PolynomialTrajectory}` → POD equivalents in `mpc_core/types.h`.
 - `ros::Time` → plain `double` seconds; the node re-stamps ROS messages.
+
+## `px4_offboard_bridge` and `px4_msgs`
+
+The bridge is the *only* PX4-aware package. It converts the node's world/ENU
+`ControlCommand` (VELOCITY: linear velocity + yaw_rate + gimbal angle) into PX4
+offboard messages (`OffboardControlMode` + `TrajectorySetpoint` velocity +
+yawspeed), runs the offboard-engage + arm/disarm state machine
+(`VehicleCommand`), converts incoming `VehicleOdometry` (NED/FRD) back to a
+`nav_msgs/Odometry` (ENU/FLU) for the node, and forwards the gimbal angle to the
+gz joint. All ENU/FLU↔NED/FRD conversion is isolated in
+`include/px4_offboard_bridge/frame_transforms.h`.
+
+It depends on **`px4_msgs`** (the PX4 uXRCE-DDS message definitions), which is
+not part of a ROS2 desktop install — clone the branch matching your PX4 firmware
+into the workspace and build it first:
+
+```bash
+git clone -b release/1.15 https://github.com/PX4/px4_msgs.git ros2_ws/src/px4_msgs
+```
+
+Topic wiring (see `launch/px4_offboard_bridge.launch.py`): PX4 side on
+`/fmu/{in,out}/*`, MPC side on `/mpc/control_command` and `/px4/odometry`,
+gimbal command on `/gimbal/angle_cmd`. Because `px4_msgs` is not installed on
+this machine, the bridge is authored to compile against it but has not been
+built/run here (unlike Stages 1–3, which were verified against the stub solver).
 
 ## Build
 
