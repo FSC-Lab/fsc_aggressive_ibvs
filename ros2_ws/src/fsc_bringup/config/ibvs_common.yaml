@@ -1,0 +1,20 @@
+# Shared reference values for the IBVS SITL bringup.
+#
+# The individual nodes are configured by their own package YAMLs
+# (mpc_controller_node/config/mpc_params.yaml,
+#  px4_offboard_bridge/config/bridge_params.yaml,
+#  fsc_perception/config/perception_params.yaml). This file documents the values
+# that MUST agree across them; override the per-node YAMLs (or pass params_file:=
+# to the sub-launches) to keep them consistent.
+#
+# Camera mount — identical in mpc_controller_node and target_bearing_node:
+#   t_B_C: [0.0, 0.0, 0.15]
+#   q_B_M: [0.5, -0.5, 0.5, -0.5]   # [w, x, y, z]
+#
+# Frames:
+#   world_frame: "odom"             # ENU world used by node + perception + bridge
+#   body_frame:  "base_link"        # bridge odometry child frame
+#
+# Target / reference (world/ENU):
+#   target_position:    [5.0, 0.0, 1.0]   # matches moving_target.sdf spawn pose
+#   reference_position: [0.0, 0.0, 3.0]

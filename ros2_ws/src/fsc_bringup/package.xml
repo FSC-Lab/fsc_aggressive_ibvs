@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>fsc_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    Top-level bringup for the velocity-body + pitch-gimbal IBVS NMPC on PX4 SITL
+    + gz Harmonic: composes the uXRCE-DDS agent, the ros_gz_bridge, the offboard
+    bridge, the ground-truth perception node, and the MPC controller node.
+  </description>
+  <maintainer email="hakim@example.com">Hakim Amer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>mpc_controller_node</exec_depend>
+  <exec_depend>px4_offboard_bridge</exec_depend>
+  <exec_depend>fsc_perception</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

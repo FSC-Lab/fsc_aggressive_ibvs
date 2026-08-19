@@ -41,11 +41,14 @@ inside `px4_offboard_bridge`.
 | 3 | `mpc_controller_node` — rclcpp node wrapping `mpc_core` | **done** |
 | 4 | `px4_offboard_bridge` — VELOCITY→PX4 offboard, arm state machine, frames | **done** (needs `px4_msgs`, see below) |
 | 5 | `fsc_perception` — ground-truth bearing/range node + gz gimbal/target assets | **done** (node built here; gz assets untested) |
-| 6 | `fsc_bringup` — launch + params for SITL + DDS agent + bridge + node | todo |
+| 6 | `fsc_bringup` — launch + params for SITL + DDS agent + bridge + node | **done** (launch authored; full bringup needs SITL) |
 
-Stages 1–3 have been compile- and run-verified end-to-end against a **stub**
-ACADO solver (correct dimensions, no-op numerics) since ACADO cannot be run in
-this environment; swap in the real generated model to get real control output.
+Verification status on this machine: `mpc_core` + `fsc_vision_msgs` +
+`mpc_controller_node` were compiled and run end-to-end against a **stub** ACADO
+solver (correct dimensions, no-op numerics); `fsc_perception` was compiled and
+run. `px4_offboard_bridge` needs `px4_msgs` and `fsc_bringup` needs the full
+SITL stack, so both are authored to build/run but could not be exercised here.
+Swap in the real generated ACADO model + `px4_msgs` + PX4 SITL to run for real.
 
 ## `mpc_core` and the ACADO model
 
